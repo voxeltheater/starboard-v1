@@ -116,8 +116,8 @@ void loop(){
   }else if (PCB_MODEL == PCB_RGB12 && dropIndex == 15){
     soloRGBTestFrame();
 
-  }else if (PCB_MODEL == PCB_MONO20 && (dipDial2 == 15 || dipDial1 == 15)){
-    soloRGBTestFrame();
+  }else if (PCB_MODEL == PCB_MONO20 && dipDial1 == 15){
+    whiteTestFrame();
     
   }else if(controlValue == 10){
     monochromeFrame();
