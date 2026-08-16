@@ -13,6 +13,16 @@
 #define PCB_MODEL PCB_MONO20
 #define BLACKOUT_IF_NO_DMX false
 
+#define DEBUG_LED_PIN 6
+#define DEBUG_SERIAL_LOG true
+#define DEBUG_PRINT_INTERVAL_MILLIS 500
+#define DMX_TIMEOUT_MILLIS 1000
+
+#define DMX_OK 0
+#define DMX_FAULT_NO_PACKET 1
+#define DMX_FAULT_START_CODE 2
+#define DMX_FAULT_ALL_FF 3
+
 #define NUM_TLC59711 3
 Adafruit_TLC59711 tlc = Adafruit_TLC59711(NUM_TLC59711, 18, 19);
 DmxInput dmxInput;
@@ -35,9 +45,12 @@ void dmxDataRecevied(DmxInput* instance);
 void regularRGBFrame();
 void regularMonoFrame();
 
+int updateDMXHealthLED();
+void printLEDBrightnesses();
+
 void setup(){
   Serial.begin(9600);
-  pinMode(6, OUTPUT);
+  pinMode(DEBUG_LED_PIN, OUTPUT);
   pinMode(23, OUTPUT);
   pinMode(24, INPUT_PULLUP);
 
@@ -60,9 +73,9 @@ void setup(){
   dmxInput.read_async(buffer, dmxDataRecevied);
 
   for (int i = 0; i < 3; i++){
-    digitalWrite(6, HIGH);
+    digitalWrite(DEBUG_LED_PIN, HIGH);
     delay(100);
-    digitalWrite(6, LOW);
+    digitalWrite(DEBUG_LED_PIN, LOW);
     delay(200);
   }
 }
@@ -77,7 +90,7 @@ int greenScale = 255;
 int blueScale = 255;
 int controlValue = 0;
 int previousControlValue = 0;
-long lastDMXFrameMillis = 0;
+volatile unsigned long lastDMXFrameMillis = 0;
 
 void loop(){
 
@@ -106,7 +119,9 @@ void loop(){
     addressOffset = 20 * dropIndex;
   }
 
-  
+  if(updateDMXHealthLED() == DMX_OK){
+    printLEDBrightnesses();
+  }
 
   controlValue = buffer[511];
 
@@ -286,6 +301,93 @@ void applyBrightness(){
   int brightnessScale = constrain(map(buffer[512], MAX_PWM_GAIN_BEFORE_CURRENT_GAIN, 255, 0, MAX_CURRENT), 0, MAX_CURRENT);
   // blue, green, red
   tlc.setBrightness(brightnessScale + MIN_CURRENT, brightnessScale + MIN_CURRENT, brightnessScale + MIN_CURRENT);
+}
+
+// Lights DEBUG_LED_PIN solid whenever the DMX input looks unhealthy:
+// nothing received recently, a non-zero start code, or an all-0xFF universe
+// (which is what a floating receiver input reads as).
+int updateDMXHealthLED(){
+  int fault = DMX_OK;
+
+  if(millis() - lastDMXFrameMillis > DMX_TIMEOUT_MILLIS){
+    fault = DMX_FAULT_NO_PACKET;
+
+  }else if(buffer[0] != 0x00){
+    fault = DMX_FAULT_START_CODE;
+
+  }else{
+    fault = DMX_FAULT_ALL_FF;
+    for (int i = 1; i <= 512; i++){
+      if(buffer[i] != 0xFF){
+        fault = DMX_OK;
+        break;
+      }
+    }
+  }
+
+  digitalWrite(DEBUG_LED_PIN, fault == DMX_OK ? LOW : HIGH);
+
+  static int previousFault = DMX_OK;
+  if(DEBUG_SERIAL_LOG && fault != previousFault && Serial){
+    switch(fault){
+      case DMX_OK:              Serial.println("DMX ok"); break;
+      case DMX_FAULT_NO_PACKET: Serial.println("DMX fault: no packet"); break;
+      case DMX_FAULT_START_CODE:
+        Serial.print("DMX fault: start code 0x");
+        Serial.println(buffer[0], HEX);
+        break;
+      case DMX_FAULT_ALL_FF:    Serial.println("DMX fault: all-0xFF universe"); break;
+    }
+  }
+  previousFault = fault;
+  return fault;
+}
+
+// Dumps the DMX value feeding each LED while the input is healthy: 20 single
+// values on MONO20, 12 R,G,B triplets on RGB12. Rate limited to keep the log
+// readable and to stay well clear of saturating the link.
+void printLEDBrightnesses(){
+  if(!DEBUG_SERIAL_LOG || !Serial){
+    return;
+  }
+
+  static unsigned long lastPrintMillis = 0;
+  if(millis() - lastPrintMillis < DEBUG_PRINT_INTERVAL_MILLIS){
+    return;
+  }
+  lastPrintMillis = millis();
+
+  // Mirrors the indexing in regularMonoFrame()/regularRGBFrame() without
+  // touching the global addressOffset, which regularRGBFrame() rescales.
+  int base = (PCB_MODEL == PCB_RGB12) ? addressOffset * 3 : addressOffset;
+  int span = (PCB_MODEL == PCB_RGB12) ? 36 : 20;
+
+  Serial.print("LEDs @");
+  Serial.print(base + 1);
+  Serial.print(":");
+
+  if(base + span > 512){
+    Serial.println(" address out of range");
+    return;
+  }
+
+  if(PCB_MODEL == PCB_RGB12){
+    for (int i = 0; i < 12; i++){
+      int ledOffset = base + i * 3;
+      Serial.print(" ");
+      Serial.print(buffer[ledOffset + 1]);
+      Serial.print(",");
+      Serial.print(buffer[ledOffset + 2]);
+      Serial.print(",");
+      Serial.print(buffer[ledOffset + 3]);
+    }
+  }else{
+    for (int i = 0; i < 20; i++){
+      Serial.print(" ");
+      Serial.print(buffer[base + i + 1]);
+    }
+  }
+  Serial.println();
 }
 
 void __isr dmxDataRecevied(DmxInput* instance) {
