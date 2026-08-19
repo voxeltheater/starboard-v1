@@ -8,7 +8,7 @@
 #define MAX_PWM_GAIN_BEFORE_CURRENT_GAIN 64
 #define PCB_RGB12 0
 #define PCB_MONO20 1
-#define PCB_MONO10 2
+#define PCB_MONO12 2
 
 #define PCB_MODEL PCB_MONO20
 #define BLACKOUT_IF_NO_DMX false
@@ -23,13 +23,33 @@
 #define DMX_FAULT_START_CODE 2
 #define DMX_FAULT_ALL_FF 3
 
-#define NUM_TLC59711 3
+// Count of 224-bit packets clocked out per write, which is not the same as the
+// number of drivers stuffed. RGB12 really does have three. MONO20 carries two
+// but still declares three: the first packet sent shifts clear off the end of
+// the chain, which is what lands the groups regularMonoFrame() uses (4-11) in
+// the two real drivers. Lowering this to 2 shrinks pwmbuffer and setPWM() then
+// rejects groups 8-11, so leave it alone. MONO12 has a single driver and needs
+// no such offset - one packet, one chip.
+#define NUM_TLC59711 (PCB_MODEL == PCB_MONO12 ? 1 : 3)
+// LED groups those packets cover, 4 per packet. Bounds the test frames.
+#define NUM_LED_GROUPS (NUM_TLC59711 * 4)
+// DMX footprint of the mono boards.
+#define MONO_CHANNELS (PCB_MODEL == PCB_MONO12 ? 12 : 20)
+
 Adafruit_TLC59711 tlc = Adafruit_TLC59711(NUM_TLC59711, 18, 19);
 DmxInput dmxInput;
 
 volatile uint8_t buffer[DMXINPUT_BUFFER_SIZE(1, 512)];
 
 uint8_t ledPatch[12] = {11, 10, 8, 9, 7, 6, 4, 5, 3, 2, 0, 1};
+
+// RGB12 and MONO20 patch their 12 LED groups into physical drop order. MONO12's
+// lone driver is wired straight through, so its groups need no remapping - and
+// only 4 of them exist, which is what NUM_LED_GROUPS bounds the test frames to.
+int testLED(int i){
+  return (PCB_MODEL == PCB_MONO12) ? i : ledPatch[i];
+}
+
 uint8_t slowClockValue = 0;
 int loops = 0;
 
@@ -44,6 +64,7 @@ void dmxDataRecevied(DmxInput* instance);
 
 void regularRGBFrame();
 void regularMonoFrame();
+void regularMono12Frame();
 
 int updateDMXHealthLED();
 void printLEDBrightnesses();
@@ -102,7 +123,7 @@ void loop(){
     dropIndex = b1 + b2 * 2 + b4 * 4 + b8 * 8; // 0-15
     addressOffset = 11 * dropIndex;
 
-  }else if(PCB_MODEL == PCB_MONO20){
+  }else if(PCB_MODEL == PCB_MONO20 || PCB_MODEL == PCB_MONO12){
     uint8_t b1a = digitalRead(10);
     uint8_t b2a = digitalRead(4);
     uint8_t b4a = digitalRead(2);
@@ -116,7 +137,7 @@ void loop(){
     dipDial2 = b1b + b2b * 2 + b4b * 4 + b8b * 8; // 0-15
 
     dropIndex = dipDial1 * 10 + dipDial2;
-    addressOffset = 20 * dropIndex;
+    addressOffset = MONO_CHANNELS * dropIndex;
   }
 
   if(updateDMXHealthLED() == DMX_OK){
@@ -131,7 +152,7 @@ void loop(){
   }else if (PCB_MODEL == PCB_RGB12 && dropIndex == 15){
     soloRGBTestFrame();
 
-  }else if (PCB_MODEL == PCB_MONO20 && dipDial1 == 15){
+  }else if ((PCB_MODEL == PCB_MONO20 || PCB_MODEL == PCB_MONO12) && dipDial1 == 15){
     whiteTestFrame();
     
   }else if(controlValue == 10){
@@ -165,6 +186,8 @@ void loop(){
     }else if(PCB_MODEL == PCB_MONO20){
       regularMonoFrame();
 
+    }else if(PCB_MODEL == PCB_MONO12){
+      regularMono12Frame();
 
     }
   }
@@ -173,7 +196,7 @@ void loop(){
   loops++;
   if(loops>10){
     slowClockValue++;
-    if(slowClockValue>11){
+    if(slowClockValue > NUM_LED_GROUPS - 1){
       slowClockValue = 0;
     }
     loops = 0;
@@ -215,6 +238,16 @@ void regularMonoFrame(){
   
 }
 
+// MONO12 wires board outputs 1-12 to the driver's PWM channels 0-11 in order:
+// pins 3-8 are OUTR0/G0/B0/R1/G1/B1 (GS fields 0-5) and pins 13-18 are
+// OUTR2/G2/B2/R3/G3/B3 (GS fields 6-11), so DMX channel N drives output N with
+// no patching. Scaling matches regularMonoFrame().
+void regularMono12Frame(){
+  for (int i = 0; i < 12; i++){
+    tlc.setPWM(i, constrain(buffer[addressOffset + i + 1] * 255, 0, 65535));
+  }
+}
+
 void soloRGBTestFrame(){
   if((previousControlValue < 40 || previousControlValue > 54) && controlValue>=40 && controlValue<=54){
     slowClockValue = 0;
@@ -224,16 +257,16 @@ void soloRGBTestFrame(){
   tlc.setBrightness(50, 50, 50);
 
   int val = 40000;
-  tlc.setLED(ledPatch[slowClockValue], val, 0, 0);
+  tlc.setLED(testLED(slowClockValue), val, 0, 0);
   tlc.write();
   delay(500);
-  tlc.setLED(ledPatch[slowClockValue], 0, val, 0);
+  tlc.setLED(testLED(slowClockValue), 0, val, 0);
   tlc.write();
   delay(500);
-  tlc.setLED(ledPatch[slowClockValue], 0, 0, val);
+  tlc.setLED(testLED(slowClockValue), 0, 0, val);
   tlc.write();
   delay(500);
-  tlc.setLED(ledPatch[slowClockValue], 0, 0, 0);
+  tlc.setLED(testLED(slowClockValue), 0, 0, 0);
   loops+=10;
 }
 
@@ -241,18 +274,18 @@ void allRGBTestFrame(){
   tlc.setBrightness(50, 50, 50);
 
   int val = 40000;
-  for (int i = 0; i < 12; i++){
-    tlc.setLED(ledPatch[i], val, 0, 0);
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), val, 0, 0);
   }
   tlc.write();
   delay(500);
-  for (int i = 0; i < 12; i++){
-    tlc.setLED(ledPatch[i], 0, val, 0);
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), 0, val, 0);
   }
   tlc.write();
   delay(500);
-  for (int i = 0; i < 12; i++){
-    tlc.setLED(ledPatch[i], 0, 0, val);
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), 0, 0, val);
   }
   tlc.write();
   delay(500);
@@ -262,20 +295,25 @@ void whiteTestFrame(){
   tlc.setBrightness(20, 20, 20);
 
   int val = 65535;
-  for (int i = 0; i < 12; i++){
-    tlc.setLED(ledPatch[i], val, val, val);
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), val, val, val);
   }
 }
 
 void indexTestFrame(){
   tlc.setBrightness(127, 127, 127);
 
-  for (int i = 0; i < 12; i++){
-    tlc.setLED(ledPatch[i], 0, 0, 0);
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), 0, 0, 0);
   }
 
   int val = 20000;
-  if(dropIndex < 11){
+  if(PCB_MODEL == PCB_MONO12){
+    // One output per index here, and only 12 of them.
+    if(dropIndex < 12){
+      tlc.setPWM(dropIndex, val);
+    }
+  }else if(dropIndex < 11){
     tlc.setLED(ledPatch[dropIndex], 0, val, val);
   }else{
     tlc.setLED(ledPatch[dropIndex-11], val, 0, val);
@@ -285,6 +323,15 @@ void indexTestFrame(){
 void monochromeFrame(){
   applyBrightness();
 
+  if(PCB_MODEL == PCB_MONO12){
+    // Every output is its own pixel on this board, so monochrome mode is just
+    // the regular map with the gamma curve applied.
+    for (int i = 0; i < 12; i++){
+      tlc.setPWM(i, pow(buffer[i + addressOffset + 1], INTENSITY_SCALE_EXPONENT));
+    }
+    return;
+  }
+
   for (int i = 0; i < 12; i++){
     int val = pow(buffer[i + addressOffset + 1], INTENSITY_SCALE_EXPONENT);
     tlc.setLED(ledPatch[i], val, val, val);
@@ -292,8 +339,8 @@ void monochromeFrame(){
 }
 
 void blackoutFrame(){
-  for (int i = 0; i < 12; i++){
-    tlc.setLED(ledPatch[i], 0, 0, 0);
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), 0, 0, 0);
   }
 }
 
@@ -344,7 +391,7 @@ int updateDMXHealthLED(){
 }
 
 // Dumps the DMX value feeding each LED while the input is healthy: 20 single
-// values on MONO20, 12 R,G,B triplets on RGB12. Rate limited to keep the log
+// values on MONO20, 12 on MONO12, 12 R,G,B triplets on RGB12. Rate limited to keep the log
 // readable and to stay well clear of saturating the link.
 void printLEDBrightnesses(){
   if(!DEBUG_SERIAL_LOG || !Serial){
@@ -360,7 +407,7 @@ void printLEDBrightnesses(){
   // Mirrors the indexing in regularMonoFrame()/regularRGBFrame() without
   // touching the global addressOffset, which regularRGBFrame() rescales.
   int base = (PCB_MODEL == PCB_RGB12) ? addressOffset * 3 : addressOffset;
-  int span = (PCB_MODEL == PCB_RGB12) ? 36 : 20;
+  int span = (PCB_MODEL == PCB_RGB12) ? 36 : MONO_CHANNELS;
 
   Serial.print("LEDs @");
   Serial.print(base + 1);
@@ -382,7 +429,7 @@ void printLEDBrightnesses(){
       Serial.print(buffer[ledOffset + 3]);
     }
   }else{
-    for (int i = 0; i < 20; i++){
+    for (int i = 0; i < MONO_CHANNELS; i++){
       Serial.print(" ");
       Serial.print(buffer[base + i + 1]);
     }
