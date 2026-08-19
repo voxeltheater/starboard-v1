@@ -22,6 +22,13 @@
 #define DMX_FAULT_NO_PACKET 1
 #define DMX_FAULT_START_CODE 2
 #define DMX_FAULT_ALL_FF 3
+#define DMX_FAULT_BAD_ADDRESS 4
+
+// Highest drop whose channels still fit inside the 512-channel universe.
+// MONO20 reads 20*index + 20; a dial setting above this would index past
+// the end of buffer[]. (RGB12 needs no limit: its 4-bit dial tops out at
+// 15, which is the test mode, and 14 reads at most 33*14 + 36 = 498.)
+#define MONO20_MAX_DROP_INDEX 24
 
 // Count of 224-bit packets clocked out per write, which is not the same as the
 // number of drivers stuffed. RGB12 really does have three. MONO20 carries two
@@ -105,6 +112,7 @@ int dropIndex = 0;
 int dipDial1 = 0;
 int dipDial2 = 0;
 int addressOffset = 0;
+bool addressValid = true;
 float brightnessGain = 0;
 int redScale = 255;
 int greenScale = 255;
@@ -137,6 +145,16 @@ void loop(){
     dipDial2 = b1b + b2b * 2 + b4b * 4 + b8b * 8; // 0-15
 
     dropIndex = dipDial1 * 10 + dipDial2;
+
+    // dipDial2 accepts 10-15 and dipDial1 multiplies by 10, so the dials can
+    // ask for a drop far beyond the universe. Clamp so the frame functions
+    // never index past buffer[], and flag it so the debug LED reports it.
+    // dipDial1 == 15 is the intentional test mode, not a misconfiguration.
+    addressValid = (dipDial1 == 15) || (dropIndex <= MONO20_MAX_DROP_INDEX);
+    if(dropIndex > MONO20_MAX_DROP_INDEX){
+      dropIndex = MONO20_MAX_DROP_INDEX;
+    }
+
     addressOffset = MONO_CHANNELS * dropIndex;
   }
 
@@ -307,6 +325,8 @@ void indexTestFrame(){
     tlc.setLED(testLED(i), 0, 0, 0);
   }
 
+  // ledPatch only has 12 entries; MONO20 drop indices run well past that, so
+  // anything it can't display is left dark rather than read out of bounds.
   int val = 20000;
   if(PCB_MODEL == PCB_MONO12){
     // One output per index here, and only 12 of them.
@@ -315,9 +335,9 @@ void indexTestFrame(){
     }
   }else if(dropIndex < 11){
     tlc.setLED(ledPatch[dropIndex], 0, val, val);
-  }else{
+  }else if(dropIndex - 11 < 12){
     tlc.setLED(ledPatch[dropIndex-11], val, 0, val);
-  } 
+  }
 }
 
 void monochromeFrame(){
@@ -356,7 +376,10 @@ void applyBrightness(){
 int updateDMXHealthLED(){
   int fault = DMX_OK;
 
-  if(millis() - lastDMXFrameMillis > DMX_TIMEOUT_MILLIS){
+  if(!addressValid){
+    fault = DMX_FAULT_BAD_ADDRESS;
+
+  }else if(millis() - lastDMXFrameMillis > DMX_TIMEOUT_MILLIS){
     fault = DMX_FAULT_NO_PACKET;
 
   }else if(buffer[0] != 0x00){
@@ -384,6 +407,10 @@ int updateDMXHealthLED(){
         Serial.println(buffer[0], HEX);
         break;
       case DMX_FAULT_ALL_FF:    Serial.println("DMX fault: all-0xFF universe"); break;
+      case DMX_FAULT_BAD_ADDRESS:
+        Serial.print("DMX fault: drop index out of range, clamped to ");
+        Serial.println(MONO20_MAX_DROP_INDEX);
+        break;
     }
   }
   previousFault = fault;
