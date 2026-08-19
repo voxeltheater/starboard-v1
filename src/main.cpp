@@ -370,9 +370,9 @@ void applyBrightness(){
   tlc.setBrightness(brightnessScale + MIN_CURRENT, brightnessScale + MIN_CURRENT, brightnessScale + MIN_CURRENT);
 }
 
-// Lights DEBUG_LED_PIN solid whenever the DMX input looks unhealthy:
-// nothing received recently, a non-zero start code, or an all-0xFF universe
-// (which is what a floating receiver input reads as).
+// Lights DEBUG_LED_PIN whenever the DMX input looks unhealthy: dim when
+// nothing has been received recently, solid for a non-zero start code or an
+// all-0xFF universe (which is what a floating receiver input reads as).
 int updateDMXHealthLED(){
   int fault = DMX_OK;
 
@@ -395,7 +395,13 @@ int updateDMXHealthLED(){
     }
   }
 
-  digitalWrite(DEBUG_LED_PIN, fault == DMX_OK ? LOW : HIGH);
+  // analogWrite for every state: once the pin has been a PWM output,
+  // digitalWrite no longer drives it on the mbed core.
+  if(fault == DMX_FAULT_NO_PACKET){
+    analogWrite(DEBUG_LED_PIN, 3);
+  }else{
+    analogWrite(DEBUG_LED_PIN, fault == DMX_OK ? 0 : 255);
+  }
 
   static int previousFault = DMX_OK;
   if(DEBUG_SERIAL_LOG && fault != previousFault && Serial){
