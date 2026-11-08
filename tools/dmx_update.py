@@ -266,10 +266,19 @@ class ArtnetPoller:
                 self.ports[(ip, uni)] = {"ip": ip, "short": short, "long": long_,
                                          "universe": uni, "merging": bool(good & 0x08)}
 
-    def poll(self, seconds=2.5):
+    def poll(self, seconds=3.0, repeats=3):
+        # Nodes answer with one ArtPollReply per port, and over Wi-Fi some get
+        # lost; polling a few times (keeping what's already arrived) fills the
+        # gaps instead of failing on a missing universe.
         self.start()
-        end = time.monotonic() + seconds
-        while time.monotonic() < end:
+        start = time.monotonic()
+        sent = 1
+        while time.monotonic() - start < seconds:
+            if sent < repeats and time.monotonic() - start >= sent * seconds / repeats:
+                ports = self.ports
+                self.start()
+                self.ports = ports
+                sent += 1
             self.collect()
             time.sleep(0.05)
         return list(self.ports.values())
@@ -399,11 +408,25 @@ def main(argv=None):
     if args.protocol == "artnet":
         poller = ArtnetPoller(args.interface, args.broadcast)
         print("polling Art-Net nodes...")
-        ports = poller.poll()
+        prefix = (args.nodes or "").lower()
+
+        def is_mine(pt):
+            return pt["short"].lower().startswith(prefix) or pt["long"].lower().startswith(prefix)
+
+        # Replies get lost (especially over Wi-Fi), so keep polling until every
+        # requested universe has answered, up to a few rounds.
+        found = {}
+        for _ in range(5):
+            for pt in poller.poll():
+                found[(pt["ip"], pt["universe"])] = pt
+            if not args.nodes:
+                break
+            have = {pt["universe"] for pt in found.values() if is_mine(pt)}
+            if all(u in have for u in wire_universes):
+                break
+        ports = list(found.values())
         if args.nodes:
-            prefix = args.nodes.lower()
-            mine = [pt for pt in ports if pt["short"].lower().startswith(prefix)
-                    or pt["long"].lower().startswith(prefix)]
+            mine = [pt for pt in ports if is_mine(pt)]
             targets = {}
             for pt in mine:
                 if pt["universe"] in wire_universes:
