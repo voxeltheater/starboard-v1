@@ -52,8 +52,27 @@ BOOTSEL_WAIT = 10    # seconds for a board to reappear in the bootloader
 VERIFY_WAIT = 20     # seconds for a flashed board to come back running
 
 
-def log(msg, bell=False):
-    sys.stdout.write("%s %s%s\n" % (time.strftime("%H:%M:%S"), msg, "\a" if bell else ""))
+# Colour only on a real terminal, and never when NO_COLOR is set.
+_COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+_STYLES = {
+    # style: (emoji, ANSI colour)
+    "ok":      ("\u2705", "1;32"),        # bold green
+    "current": ("\U0001F44D", "36"),      # cyan
+    "fail":    ("\u274C", "1;31"),        # bold red
+    "refused": ("\U0001F6AB", "1;31"),    # bold red
+    "warn":    ("\u26A0\uFE0F ", "1;33"),  # bold yellow
+    "work":    ("\u26A1", "0"),           # plain
+    "ready":   ("\U0001F680", "1"),       # bold
+    "dim":     ("  ", "2"),               # faint
+}
+
+
+def log(msg, bell=False, style=None):
+    emoji, color = _STYLES.get(style, ("  ", "0"))
+    line = "%s %s" % (emoji, msg)
+    if _COLOR and color != "0":
+        line = "\033[%sm%s\033[0m" % (color, line)
+    sys.stdout.write("%s %s%s\n" % (time.strftime("%H:%M:%S"), line, "\a" if bell else ""))
     sys.stdout.flush()
 
 
@@ -133,9 +152,9 @@ def flash(picotool, uf2):
     ok = r.returncode == 0
     if not ok:
         detail = (r.stdout + r.stderr).strip().splitlines()
-        log("   picotool: %s" % (detail[-1] if detail else "failed"))
+        log("   picotool: %s" % (detail[-1] if detail else "failed"), style="dim")
         if any("multiple" in line.lower() for line in detail):
-            log("   (more than one board in the bootloader - plug in one at a time)")
+            log("   (more than one board in the bootloader - plug in one at a time)", style="warn")
     return ok
 
 
@@ -226,7 +245,7 @@ def main():
     model_tag = "SBFWID:%d:" % model
 
     log("Ready to flash %s (%s boards). Plug boards in one at a time; Ctrl-C to stop."
-        % (target, MODEL_NAMES[model].upper()))
+        % (target, MODEL_NAMES[model].upper()), style="ready")
 
     seen = {}          # serial port -> what we concluded, while it stays plugged in
     ignored = set()
@@ -239,13 +258,13 @@ def main():
             # A board already in the bootloader: blank, BOOTSEL held, or one we
             # just rebooted.
             if bootsel_present(picotool):
-                log("Board in bootloader: flashing...")
+                log("Board in bootloader: flashing...", style="work")
                 if flash(picotool, uf2):
-                    log("   written and verified, waiting for it to start...")
+                    log("   written and verified, waiting for it to start...", style="dim")
                     pending += 1
                     pending_since = time.time()
                 else:
-                    log("FAILED to flash. Unplug it and try again.", bell=True)
+                    log("FAILED to flash. Unplug it and try again.", bell=True, style="fail")
                     wait_for(lambda: not bootsel_present(picotool), 60)
 
             ports = {pt.device: pt for pt in serial.tools.list_ports.comports()}
@@ -260,14 +279,14 @@ def main():
                     if (dev, pt.vid) not in ignored:
                         ignored.add((dev, pt.vid))
                         log("(ignoring %s: USB vendor %04X isn't a board - add --vid %04X if it is)"
-                            % (dev, pt.vid, pt.vid))
+                            % (dev, pt.vid, pt.vid), style="dim")
                     continue
 
                 ident = query_id(dev)
                 if ident is PORT_BUSY:
                     if (dev, "busy") not in ignored:
                         ignored.add((dev, "busy"))
-                        log("(can't open %s - is another program using it? retrying)" % dev)
+                        log("(can't open %s - is another program using it? retrying)" % dev, style="dim")
                     continue
                 ignored.discard((dev, "busy"))
                 if ident == target:
@@ -276,16 +295,16 @@ def main():
                         pending -= 1
                         done += 1
                         log("OK: running %s. %d board(s) done this session - unplug it."
-                            % (target, done), bell=True)
+                            % (target, done), bell=True, style="ok")
                     else:
-                        log("Already up to date (%s) - unplug it." % dev)
+                        log("Already up to date (%s) - unplug it." % dev, style="current")
                     continue
                 if ident and not ident.startswith(model_tag):
                     seen[dev] = "wrong model"
                     other = ident.split(":")[1] if ident.count(":") >= 2 else "?"
                     other = MODEL_NAMES.get(int(other), other) if other.isdigit() else other
                     log("REFUSED: this is a %s board (%s); the firmware is for %s. Unplug it."
-                        % (str(other).upper(), ident, MODEL_NAMES[model].upper()), bell=True)
+                        % (str(other).upper(), ident, MODEL_NAMES[model].upper()), bell=True, style="refused")
                     continue
 
                 if pending and ident is None:
@@ -294,26 +313,26 @@ def main():
                     seen[dev] = "unverified"
                     pending = 0
                     log("WARNING: the flashed board came back but didn't report its build. "
-                        "Not reflashing; check it before putting it in the rig.", bell=True)
+                        "Not reflashing; check it before putting it in the rig.", bell=True, style="warn")
                     continue
 
                 seen[dev] = "updating"
                 log("Board on %s running %s: rebooting it into the bootloader..."
-                    % (dev, ident or "older firmware (no ID)"))
+                    % (dev, ident or "older firmware (no ID)"), style="work")
                 touch_1200(dev)
                 if not wait_for(lambda: bootsel_present(picotool), BOOTSEL_WAIT):
                     log("FAILED: it didn't enter the bootloader. Unplug it, hold BOOTSEL, "
-                        "and plug it back in.", bell=True)
+                        "and plug it back in.", bell=True, style="fail")
                 break  # re-scan from the top so the bootloader branch picks it up
 
             if pending and time.time() - pending_since > VERIFY_WAIT:
                 log("WARNING: a flashed board didn't come back running %s within %d s. "
-                    "Check it (unplug and replug to retry)." % (target, VERIFY_WAIT), bell=True)
+                    "Check it (unplug and replug to retry)." % (target, VERIFY_WAIT), bell=True, style="warn")
                 pending = 0
 
             time.sleep(0.5)
     except KeyboardInterrupt:
-        log("Stopped. %d board(s) flashed and verified this session." % done)
+        log("Stopped. %d board(s) flashed and verified this session." % done, style="ready")
     finally:
         os.unlink(uf2)
 
