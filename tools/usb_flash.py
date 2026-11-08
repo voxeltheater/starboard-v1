@@ -71,7 +71,51 @@ def uf2_payload(path):
     return b"".join(b for _, b in blocks)
 
 
+# USB IDs of the RP2040 / RP2350 boot ROM (BOOTSEL mode).
+BOOTROM_IDS = {(0x2E8A, 0x0003), (0x2E8A, 0x000F)}
+
+
+def _usb_ids():
+    """(vid, pid) of every USB device, read passively, or None if unsupported.
+
+    Must not open the devices: polling with picotool (which opens every
+    Raspberry Pi device to look for BOOTSEL) stalls macOS mid-enumeration,
+    so a board being plugged in never gets its serial port.
+    """
+    if sys.platform == "darwin":
+        out = subprocess.run(["ioreg", "-p", "IOUSB", "-l", "-w0"],
+                             capture_output=True, text=True).stdout
+        ids = set()
+        for block in out.split("+-o ")[1:]:
+            vid = pid = None
+            for line in block.splitlines():
+                line = line.strip(" |")
+                if line.startswith('"idVendor" = '):
+                    vid = int(line.split("=")[1])
+                elif line.startswith('"idProduct" = '):
+                    pid = int(line.split("=")[1])
+            if vid is not None and pid is not None:
+                ids.add((vid, pid))
+        return ids
+    if os.path.isdir("/sys/bus/usb/devices"):
+        ids = set()
+        for d in os.listdir("/sys/bus/usb/devices"):
+            try:
+                with open("/sys/bus/usb/devices/%s/idVendor" % d) as f:
+                    vid = int(f.read(), 16)
+                with open("/sys/bus/usb/devices/%s/idProduct" % d) as f:
+                    pid = int(f.read(), 16)
+                ids.add((vid, pid))
+            except (OSError, ValueError):
+                pass
+        return ids
+    return None
+
+
 def bootsel_present(picotool):
+    ids = _usb_ids()
+    if ids is not None:
+        return bool(ids & BOOTROM_IDS)
     out = subprocess.run([picotool, "info"], capture_output=True, text=True).stdout
     return "No accessible" not in out and out.strip() != ""
 
