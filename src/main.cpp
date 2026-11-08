@@ -126,6 +126,7 @@ unsigned long millisSinceLastDMXFrame();
 void serviceFirmwareUpdate();
 void installFirmwareUpdate();
 bool downloadingFirmware();
+void answerSerialQuery();
 
 void setup(){
   Serial.begin(9600);
@@ -181,6 +182,7 @@ volatile unsigned long lastDMXFrameMillis = 0;
 
 void loop(){
   serviceFirmwareUpdate();
+  answerSerialQuery();
 
   // Mid-download, skip rendering entirely: the TLC59711s latch their last
   // values so the rig holds its look, and the blocking test frames (up to
@@ -586,6 +588,16 @@ void printLEDBrightnesses(){
 unsigned long millisSinceLastDMXFrame(){
   unsigned long last = lastDMXFrameMillis;
   return millis() - last;
+}
+
+// Replies to "?" on USB serial with FIRMWARE_ID, so tools/usb_flash.py can tell
+// which build a board is running (and that a fresh flash really took).
+void answerSerialQuery(){
+  while(Serial.available() > 0){
+    if(Serial.read() == '?'){
+      Serial.println(FIRMWARE_ID);
+    }
+  }
 }
 
 bool downloadingFirmware(){
