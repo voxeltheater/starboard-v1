@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include "Adafruit_TLC59711.h"
 #include "DmxInput.h"
+#include <Updater.h>
+#include "dmx_update.h"
 
 #define MIN_CURRENT 1
 #define MAX_CURRENT 24
@@ -12,6 +14,21 @@
 
 #define PCB_MODEL PCB_RGB12
 #define BLACKOUT_IF_NO_DMX false
+
+// Identifies this build. tools/dmx_update.py reads it out of firmware.bin to
+// learn which board type the image is for (and refuses files without one),
+// and boards compare its CRC against their own to skip an image they're
+// already running. FIRMWARE_BUILD_TIME is set fresh on every build by
+// platformio.ini, so every build gets a distinct ID.
+#define SB_STR2(x) #x
+#define SB_STR(x) SB_STR2(x)
+#ifndef FIRMWARE_BUILD_TIME
+#define FIRMWARE_BUILD_TIME __DATE__ " " __TIME__
+#define FIRMWARE_BUILD_TIME_STR FIRMWARE_BUILD_TIME
+#else
+#define FIRMWARE_BUILD_TIME_STR SB_STR(FIRMWARE_BUILD_TIME)
+#endif
+__attribute__((used)) const char FIRMWARE_ID[] = "SBFWID:" SB_STR(PCB_MODEL) ":" FIRMWARE_BUILD_TIME_STR;
 
 #define DEBUG_LED_PIN 6
 #define DEBUG_SERIAL_LOG true
@@ -53,7 +70,28 @@
 Adafruit_TLC59711 tlc = Adafruit_TLC59711(NUM_TLC59711, 18, 19);
 DmxInput dmxInput;
 
+// The current show frame. Only whole frames are copied in (by the DMX
+// interrupt), so the frame functions never see half of one frame and half of
+// the next.
 volatile uint8_t buffer[DMXINPUT_BUFFER_SIZE(1, 512)];
+
+// --- Firmware update over DMX (src/dmx_update.h, tools/dmx_update.py) ---
+// The DMA receives every frame into dmaBuffer. The DMX interrupt then routes
+// it: update packets into updateQueue, everything else into buffer[]. Update
+// data never reaches the LEDs, so the rig holds its last look while it plays.
+#define DMX_UPDATE_MAX_IMAGE (160 * 1024) // keep in step with MAX_IMAGE in tools/dmx_update.py
+#define DMX_UPDATE_QUEUE 8
+// No update packet for this long and the download LED goes dark again.
+#define DMX_UPDATE_IDLE_MILLIS 2000
+#define DMX_UPDATE_PROGRESS_INTERVAL_MILLIS 1000
+
+volatile uint8_t dmaBuffer[DMXINPUT_BUFFER_SIZE(1, 512)];
+uint8_t updateQueue[DMX_UPDATE_QUEUE][DMX_UPDATE_SLOTS];
+volatile uint8_t updateQueueHead = 0; // advanced only by the interrupt
+volatile uint8_t updateQueueTail = 0; // advanced only by loop()
+uint8_t updateImage[DMX_UPDATE_MAX_IMAGE];
+DmxUpdateReceiver* updateRx = nullptr;
+unsigned long lastUpdatePacketMillis = 0;
 
 uint8_t ledPatch[12] = {11, 10, 8, 9, 7, 6, 4, 5, 3, 2, 0, 1};
 
@@ -85,6 +123,9 @@ int checkDMXHealth();
 void updateDebugLED(int fault);
 void printLEDBrightnesses();
 unsigned long millisSinceLastDMXFrame();
+void serviceFirmwareUpdate();
+void installFirmwareUpdate();
+bool downloadingFirmware();
 
 void setup(){
   Serial.begin(9600);
@@ -108,7 +149,14 @@ void setup(){
 
   digitalWrite(23, LOW);
   dmxInput.begin(24, 1, 512);
-  dmxInput.read_async(buffer, dmxDataRecevied);
+  uint32_t buildId = dmxUpdateCrc32((const uint8_t*)FIRMWARE_ID, strlen(FIRMWARE_ID));
+  static DmxUpdateReceiver receiver(updateImage, sizeof(updateImage), PCB_MODEL, buildId);
+  updateRx = &receiver;
+  if(DEBUG_SERIAL_LOG){
+    Serial.printf("%s (build ID %08lX)\n", FIRMWARE_ID, (unsigned long)buildId);
+  }
+
+  dmxInput.read_async(dmaBuffer, dmxDataRecevied);
 
   for (int i = 0; i < DEBUG_LED_FLASH_COUNT; i++){
     digitalWrite(DEBUG_LED_PIN, HIGH);
@@ -132,6 +180,7 @@ int previousControlValue = 0;
 volatile unsigned long lastDMXFrameMillis = 0;
 
 void loop(){
+  serviceFirmwareUpdate();
 
   if(PCB_MODEL == PCB_RGB12){
     uint8_t b1 = digitalRead(10);
@@ -449,9 +498,16 @@ int checkDMXHealth(){
 
 // Double flashes the first time valid DMX arrives, then keeps the LED dark for
 // the rest of the boot. Non-blocking, so the outputs keep updating meanwhile.
+// The one exception is a firmware download: the LED stays lit while update
+// packets are arriving, since the boards have no other way to show it.
 void updateDebugLED(int fault){
   static bool dmxSeen = false;
   static unsigned long dmxSeenMillis = 0;
+
+  if(downloadingFirmware()){
+    digitalWrite(DEBUG_LED_PIN, HIGH);
+    return;
+  }
 
   if(!dmxSeen){
     if(fault != DMX_OK){
@@ -524,7 +580,76 @@ unsigned long millisSinceLastDMXFrame(){
   return millis() - last;
 }
 
+bool downloadingFirmware(){
+  return updateRx != nullptr && updateRx->active()
+      && millis() - lastUpdatePacketMillis < DMX_UPDATE_IDLE_MILLIS;
+}
+
+// Feeds queued update packets to the receiver, and installs the image once it
+// is complete and verified.
+void serviceFirmwareUpdate(){
+  while(updateQueueTail != updateQueueHead){
+    uint8_t tail = updateQueueTail;
+    DmxUpdateReceiver::Result result = updateRx->handleFrame(updateQueue[tail]);
+    updateQueueTail = (tail + 1) % DMX_UPDATE_QUEUE;
+
+    if(result == DmxUpdateReceiver::PROGRESS || result == DmxUpdateReceiver::COMPLETE){
+      lastUpdatePacketMillis = millis();
+    }
+    if(result == DmxUpdateReceiver::COMPLETE){
+      installFirmwareUpdate();
+    }
+  }
+
+  static unsigned long lastProgressMillis = 0;
+  if(DEBUG_SERIAL_LOG && Serial && downloadingFirmware()
+     && millis() - lastProgressMillis >= DMX_UPDATE_PROGRESS_INTERVAL_MILLIS){
+    lastProgressMillis = millis();
+    Serial.printf("Firmware update %08lX: %u/%u chunks\n", (unsigned long)updateRx->imageCrc(),
+                  updateRx->chunksReceived(), updateRx->chunkCount());
+  }
+}
+
+// Stages the verified image in LittleFS and reboots; the arduino-pico OTA
+// bootloader then copies it over the running firmware (unpacking gzip).
+void installFirmwareUpdate(){
+  uint32_t size = updateRx->imageSize();
+  uint32_t crc = updateRx->imageCrc();
+  if(DEBUG_SERIAL_LOG){
+    Serial.printf("Firmware update %08lX complete (%lu bytes), installing\n",
+                  (unsigned long)crc, (unsigned long)size);
+  }
+
+  bool ok = Update.begin(size) && Update.write(updateImage, size) == size && Update.end();
+  if(!ok){
+    if(DEBUG_SERIAL_LOG){
+      Serial.print("Firmware update failed: ");
+      Update.printError(Serial);
+    }
+    updateRx->reset(); // drop it; the next pass from the sender starts over
+    return;
+  }
+
+  digitalWrite(DEBUG_LED_PIN, LOW);
+  delay(100);
+  rp2040.reboot();
+}
+
 void __isr dmxDataRecevied(DmxInput* instance) {
-  // digitalWrite(6, !digitalRead(6));
   lastDMXFrameMillis = millis();
+
+  // The DMA has already restarted at dmaBuffer[0], but the next frame's first
+  // byte is at least a break + MAB + start code (>100 us) away, far longer
+  // than these copies take.
+  const uint8_t* frame = (const uint8_t*)dmaBuffer;
+  if(frame[0] == 0x00 && DmxUpdateReceiver::isUpdateFrame(frame + 1)){
+    uint8_t head = updateQueueHead;
+    uint8_t next = (head + 1) % DMX_UPDATE_QUEUE;
+    if(next != updateQueueTail){ // when full, drop it: the sender repeats everything
+      memcpy(updateQueue[head], frame + 1, DMX_UPDATE_SLOTS);
+      updateQueueHead = next;
+    }
+    return;
+  }
+  memcpy((void*)buffer, frame, sizeof(buffer));
 }
