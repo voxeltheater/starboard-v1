@@ -121,7 +121,14 @@ def bootsel_present(picotool):
 
 
 def flash(picotool, uf2):
-    r = subprocess.run([picotool, "load", "-v", "-x", uf2], capture_output=True, text=True)
+    # The boot ROM shows up in the USB device list a moment before picotool
+    # can open it, so give it a few seconds rather than failing straight away.
+    deadline = time.time() + 8
+    while True:
+        r = subprocess.run([picotool, "load", "-v", "-x", uf2], capture_output=True, text=True)
+        if r.returncode == 0 or "No accessible" not in r.stdout + r.stderr or time.time() > deadline:
+            break
+        time.sleep(0.5)
     ok = r.returncode == 0
     if not ok:
         detail = (r.stdout + r.stderr).strip().splitlines()
@@ -131,10 +138,21 @@ def flash(picotool, uf2):
     return ok
 
 
+# query_id() result when the port couldn't be opened at all (e.g. another
+# program has it). Distinct from None ("opened, but no answer"), which is what
+# marks a board as running old firmware - a busy port must never trigger that.
+PORT_BUSY = object()
+
+
 def query_id(device):
-    """Ask a running board for its FIRMWARE_ID; None if it doesn't answer."""
+    """Ask a running board for its FIRMWARE_ID; None if it doesn't answer,
+    PORT_BUSY if the port couldn't be opened."""
     try:
-        with serial.Serial(device, 115200, timeout=0.1) as s:
+        s = serial.Serial(device, 115200, timeout=0.1)
+    except (serial.SerialException, OSError):
+        return PORT_BUSY
+    try:
+        with s:
             time.sleep(0.3)
             buf = b""
             # A freshly booted board takes ~1 s (setup delays) before loop()
@@ -237,6 +255,12 @@ def main():
                     continue
 
                 ident = query_id(dev)
+                if ident is PORT_BUSY:
+                    if (dev, "busy") not in ignored:
+                        ignored.add((dev, "busy"))
+                        log("(can't open %s - is another program using it? retrying)" % dev)
+                    continue
+                ignored.discard((dev, "busy"))
                 if ident == target:
                     seen[dev] = "current"
                     if pending:
