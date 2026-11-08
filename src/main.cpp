@@ -81,7 +81,8 @@ volatile uint8_t buffer[DMXINPUT_BUFFER_SIZE(1, 512)];
 // data never reaches the LEDs, so the rig holds its last look while it plays.
 #define DMX_UPDATE_MAX_IMAGE (160 * 1024) // keep in step with MAX_IMAGE in tools/dmx_update.py
 #define DMX_UPDATE_QUEUE 8
-// No update packet for this long and the download LED goes dark again.
+// No update packet for this long and the board stops treating a download as
+// in progress (resumes rendering show data).
 #define DMX_UPDATE_IDLE_MILLIS 2000
 #define DMX_UPDATE_PROGRESS_INTERVAL_MILLIS 1000
 
@@ -186,9 +187,11 @@ void loop(){
 
   // Mid-download, skip rendering entirely: the TLC59711s latch their last
   // values so the rig holds its look, and the blocking test frames (up to
-  // 1.5 s per loop) would otherwise overflow the update queue.
+  // 1.5 s per loop) would otherwise overflow the update queue. The debug LED
+  // is forced dark: it's visible to the audience, and a download that starts
+  // during the first-DMX double flash must not leave it stuck on.
   if(downloadingFirmware()){
-    updateDebugLED(DMX_OK);
+    digitalWrite(DEBUG_LED_PIN, LOW);
     return;
   }
 
@@ -507,17 +510,12 @@ int checkDMXHealth(){
 }
 
 // Double flashes the first time valid DMX arrives, then keeps the LED dark for
-// the rest of the boot. Non-blocking, so the outputs keep updating meanwhile.
-// The one exception is a firmware download: the LED stays lit while update
-// packets are arriving, since the boards have no other way to show it.
+// the rest of the boot - including during firmware downloads (progress is on
+// serial; a finished update shows as the reboot's power-up flashes).
+// Non-blocking, so the outputs keep updating meanwhile.
 void updateDebugLED(int fault){
   static bool dmxSeen = false;
   static unsigned long dmxSeenMillis = 0;
-
-  if(downloadingFirmware()){
-    digitalWrite(DEBUG_LED_PIN, HIGH);
-    return;
-  }
 
   if(!dmxSeen){
     if(fault != DMX_OK){
