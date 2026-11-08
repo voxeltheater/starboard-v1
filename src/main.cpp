@@ -10,13 +10,20 @@
 #define PCB_MONO20 1
 #define PCB_MONO12 2
 
-#define PCB_MODEL PCB_MONO20
+#define PCB_MODEL PCB_RGB12
 #define BLACKOUT_IF_NO_DMX false
 
 #define DEBUG_LED_PIN 6
 #define DEBUG_SERIAL_LOG true
 #define DEBUG_PRINT_INTERVAL_MILLIS 500
-#define DMX_TIMEOUT_MILLIS 1000
+// DMX512 allows up to 1 s between breaks, so time out with some margin past it.
+#define DMX_TIMEOUT_MILLIS 1500
+// The debug LED is visible to the audience, so it only signals two events per
+// boot: a double flash at power-up, and a double flash the first time valid DMX
+// arrives. After that it stays dark; faults are reported over serial only.
+#define DEBUG_LED_FLASH_COUNT 2
+#define DEBUG_LED_ON_MILLIS 100
+#define DEBUG_LED_OFF_MILLIS 200
 
 #define DMX_OK 0
 #define DMX_FAULT_NO_PACKET 1
@@ -66,6 +73,7 @@ void indexTestFrame();
 void soloRGBTestFrame();
 void allRGBTestFrame();
 void whiteTestFrame();
+void solidColorTestFrame(bool red, bool green, bool blue);
 void blackoutFrame();
 void dmxDataRecevied(DmxInput* instance);
 
@@ -73,8 +81,10 @@ void regularRGBFrame();
 void regularMonoFrame();
 void regularMono12Frame();
 
-int updateDMXHealthLED();
+int checkDMXHealth();
+void updateDebugLED(int fault);
 void printLEDBrightnesses();
+unsigned long millisSinceLastDMXFrame();
 
 void setup(){
   Serial.begin(9600);
@@ -100,11 +110,11 @@ void setup(){
   dmxInput.begin(24, 1, 512);
   dmxInput.read_async(buffer, dmxDataRecevied);
 
-  for (int i = 0; i < 3; i++){
+  for (int i = 0; i < DEBUG_LED_FLASH_COUNT; i++){
     digitalWrite(DEBUG_LED_PIN, HIGH);
-    delay(100);
+    delay(DEBUG_LED_ON_MILLIS);
     digitalWrite(DEBUG_LED_PIN, LOW);
-    delay(200);
+    delay(DEBUG_LED_OFF_MILLIS);
   }
 }
 
@@ -158,7 +168,9 @@ void loop(){
     addressOffset = MONO_CHANNELS * dropIndex;
   }
 
-  if(updateDMXHealthLED() == DMX_OK){
+  int dmxFault = checkDMXHealth();
+  updateDebugLED(dmxFault);
+  if(dmxFault == DMX_OK){
     printLEDBrightnesses();
   }
 
@@ -188,7 +200,16 @@ void loop(){
   }else if(controlValue >= 80 && controlValue <= 94){
     whiteTestFrame();
 
-  }else if(BLACKOUT_IF_NO_DMX && millis() - lastDMXFrameMillis > 3000){
+  }else if(PCB_MODEL == PCB_RGB12 && controlValue >= 100 && controlValue <= 114){
+    solidColorTestFrame(1, 0, 0); // all red
+
+  }else if(PCB_MODEL == PCB_RGB12 && controlValue >= 120 && controlValue <= 134){
+    solidColorTestFrame(0, 1, 0); // all green
+
+  }else if(PCB_MODEL == PCB_RGB12 && controlValue >= 140 && controlValue <= 154){
+    solidColorTestFrame(0, 0, 1); // all blue
+
+  }else if(BLACKOUT_IF_NO_DMX && millisSinceLastDMXFrame() > 3000){
     blackoutFrame();
 
   }else{
@@ -318,6 +339,17 @@ void whiteTestFrame(){
   }
 }
 
+// Holds every LED group on a single colour. Same level as each step of
+// allRGBTestFrame(), but static, so one colour can be checked across the rig.
+void solidColorTestFrame(bool red, bool green, bool blue){
+  tlc.setBrightness(50, 50, 50);
+
+  int val = 40000;
+  for (int i = 0; i < NUM_LED_GROUPS; i++){
+    tlc.setLED(testLED(i), red ? val : 0, green ? val : 0, blue ? val : 0);
+  }
+}
+
 void indexTestFrame(){
   tlc.setBrightness(127, 127, 127);
 
@@ -370,16 +402,16 @@ void applyBrightness(){
   tlc.setBrightness(brightnessScale + MIN_CURRENT, brightnessScale + MIN_CURRENT, brightnessScale + MIN_CURRENT);
 }
 
-// Lights DEBUG_LED_PIN whenever the DMX input looks unhealthy: dim when
-// nothing has been received recently, solid for a non-zero start code or an
-// all-0xFF universe (which is what a floating receiver input reads as).
-int updateDMXHealthLED(){
+// Classifies the DMX input: no frame recently, a non-zero start code, an
+// all-0xFF universe (which is what a floating receiver input reads as), or an
+// out-of-range address. Logs each change over serial.
+int checkDMXHealth(){
   int fault = DMX_OK;
 
   if(!addressValid){
     fault = DMX_FAULT_BAD_ADDRESS;
 
-  }else if(millis() - lastDMXFrameMillis > DMX_TIMEOUT_MILLIS){
+  }else if(millisSinceLastDMXFrame() > DMX_TIMEOUT_MILLIS){
     fault = DMX_FAULT_NO_PACKET;
 
   }else if(buffer[0] != 0x00){
@@ -393,14 +425,6 @@ int updateDMXHealthLED(){
         break;
       }
     }
-  }
-
-  // analogWrite for every state: once the pin has been a PWM output,
-  // digitalWrite no longer drives it on the mbed core.
-  if(fault == DMX_FAULT_NO_PACKET){
-    analogWrite(DEBUG_LED_PIN, 3);
-  }else{
-    analogWrite(DEBUG_LED_PIN, fault == DMX_OK ? 0 : 255);
   }
 
   static int previousFault = DMX_OK;
@@ -421,6 +445,26 @@ int updateDMXHealthLED(){
   }
   previousFault = fault;
   return fault;
+}
+
+// Double flashes the first time valid DMX arrives, then keeps the LED dark for
+// the rest of the boot. Non-blocking, so the outputs keep updating meanwhile.
+void updateDebugLED(int fault){
+  static bool dmxSeen = false;
+  static unsigned long dmxSeenMillis = 0;
+
+  if(!dmxSeen){
+    if(fault != DMX_OK){
+      return;
+    }
+    dmxSeen = true;
+    dmxSeenMillis = millis();
+  }
+
+  unsigned long elapsed = millis() - dmxSeenMillis;
+  unsigned long period = DEBUG_LED_ON_MILLIS + DEBUG_LED_OFF_MILLIS;
+  bool on = elapsed < period * DEBUG_LED_FLASH_COUNT && elapsed % period < DEBUG_LED_ON_MILLIS;
+  digitalWrite(DEBUG_LED_PIN, on ? HIGH : LOW);
 }
 
 // Dumps the DMX value feeding each LED while the input is healthy: 20 single
@@ -468,6 +512,16 @@ void printLEDBrightnesses(){
     }
   }
   Serial.println();
+}
+
+// Read the timestamp before millis(). The other order races the DMX interrupt:
+// a frame landing between the two reads makes lastDMXFrameMillis newer than
+// "now", the unsigned subtraction wraps to ~4 billion, and the board briefly
+// reports a DMX timeout. Read this way, an interrupt can only make the copy
+// older, which is harmless.
+unsigned long millisSinceLastDMXFrame(){
+  unsigned long last = lastDMXFrameMillis;
+  return millis() - last;
 }
 
 void __isr dmxDataRecevied(DmxInput* instance) {
