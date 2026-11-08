@@ -25,10 +25,13 @@ Examples:
   python3 tools/dmx_update.py firmware.bin --protocol artnet \\
       --nodes STARNET --numbering sacn --universes 40-71 --dry-run
 
-With Art-Net the sender asks the nodes (ArtPoll) whether any target port is
-merging another source, before sending and again a few seconds in, and stops
-if one is: a second source merging into the update universe corrupts most
-update packets, so boards never complete the image.
+Any other source on the update universes (a console, a second controller)
+merges into the update packets and corrupts many of them, so boards never
+complete the image - they just keep running their current firmware. The
+sender asks you to confirm every other source is off before sending. With
+Art-Net it also asks the nodes (ArtPoll) whether a target port reports
+merging and stops if one does, but don't rely on that: on hardware, nodes
+merging two Art-Net sources didn't report it.
 
 Needs only the Python 3 standard library.
 """
@@ -329,7 +332,9 @@ def main(argv=None):
                    help="Art-Net: where to send discovery polls (default: the --interface "
                         "network's .255 and 255.255.255.255)")
     p.add_argument("--allow-merge", action="store_true",
-                   help="Art-Net: send even if a target port is merging another source")
+                   help="Art-Net: send even if a target port reports merging another source")
+    p.add_argument("--yes", action="store_true",
+                   help="skip the 'are all other sources off?' confirmation")
     p.add_argument("--dry-run", action="store_true",
                    help="show what would be sent where (and any merging), then stop")
     p.add_argument("--interface", metavar="IP",
@@ -422,7 +427,7 @@ def main(argv=None):
             targets = {u: [args.target] for u in wire_universes}
         merging = merging_ports(ports, targets)
         if merging:
-            msg = "already merging another source: " + describe_merge(merging, offset)
+            msg = "reports merging another source: " + describe_merge(merging, offset)
             if not args.allow_merge:
                 raise SystemExit("STOP - %s.\nTurn the other source off (it corrupts the "
                                  "update) or pass --allow-merge." % msg)
@@ -437,6 +442,18 @@ def main(argv=None):
                   % (args.universes, args.target or "multicast"))
             return 0
         sender = SacnSender(args.target, args.priority, "Starboard firmware update", args.interface)
+
+    if not args.yes:
+        print("\nEvery other DMX source on these universes (consoles, other controllers,"
+              "\nArt-Net or sACN) must be OFF, or boards won't complete the update. The node"
+              "\ncheck above can't always tell - you have to.")
+        try:
+            answer = input("Are all other sources off? [y/N] ")
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() not in ("y", "yes"):
+            print("not sent.")
+            return 1
 
     per_pass = len(frames) / args.rate
     print("firmware: %s, for %s boards" % (ident, MODEL_NAMES[model].upper()))

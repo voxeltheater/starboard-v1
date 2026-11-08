@@ -26,6 +26,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -210,8 +211,16 @@ def main():
     for v in args.vid:
         vids[int(v, 16)] = "custom"
 
+    # Flash a private snapshot, not the build output: if the project is
+    # rebuilt while this runs, flashing the new file but verifying against the
+    # old build ID would reflash every board in a loop.
+    snap = tempfile.NamedTemporaryFile(prefix="starboard-", suffix=".uf2", delete=False)
+    with open(args.uf2, "rb") as f:
+        snap.write(f.read())
+    snap.close()
+    uf2 = snap.name
     try:
-        model, _, target = read_firmware_id(uf2_payload(args.uf2))
+        model, _, target = read_firmware_id(uf2_payload(uf2))
     except ValueError as e:
         raise SystemExit("%s: %s" % (args.uf2, e))
     model_tag = "SBFWID:%d:" % model
@@ -231,7 +240,7 @@ def main():
             # just rebooted.
             if bootsel_present(picotool):
                 log("Board in bootloader: flashing...")
-                if flash(picotool, args.uf2):
+                if flash(picotool, uf2):
                     log("   written and verified, waiting for it to start...")
                     pending += 1
                     pending_since = time.time()
@@ -305,6 +314,8 @@ def main():
             time.sleep(0.5)
     except KeyboardInterrupt:
         log("Stopped. %d board(s) flashed and verified this session." % done)
+    finally:
+        os.unlink(uf2)
 
 
 if __name__ == "__main__":
