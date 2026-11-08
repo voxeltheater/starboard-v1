@@ -12,13 +12,13 @@ Stop the console (or anything else outputting to these universes) first:
 two sources on one universe will interleave and slow the update to a crawl.
 
 Examples:
-  # all of universes 1-20 over sACN multicast
+  # universes 40-71 over sACN multicast, out of the interface at 10.0.0.5
   python3 tools/dmx_update.py .pio/build/nanorp2040connect/firmware.bin \\
-      --universes 1-20
+      --universes 40-71 --interface 10.0.0.5
 
-  # Art-Net, broadcast on the 2.x network, universes 0-19
+  # Art-Net, broadcast on the 2.x network
   python3 tools/dmx_update.py firmware.bin \\
-      --protocol artnet --target 2.255.255.255 --universes 0-19
+      --protocol artnet --target 2.255.255.255 --universes 40-71
 
 Needs only the Python 3 standard library.
 """
@@ -62,6 +62,8 @@ def read_firmware_id(image):
             "support (or it's the .uf2/.signed file rather than firmware.bin)"
         )
     end = image.find(b"\x00", start)
+    if end < 0 or end - start > 64:
+        raise ValueError("malformed FIRMWARE_ID (no terminator)")
     ident = image[start:end]
     try:
         model = int(ident.split(b":")[1])
@@ -117,17 +119,33 @@ def pass_frames(header, data):
     return frames
 
 
+def _make_socket(interface):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    if interface:
+        try:
+            sock.bind((interface, 0))
+        except OSError as e:
+            raise SystemExit("can't use --interface %s: %s (it must be this computer's own "
+                             "IP address on the lighting network)" % (interface, e))
+    return sock
+
+
 class SacnSender:
     PORT = 5568
 
-    def __init__(self, target, priority, name):
+    def __init__(self, target, priority, name, interface=None):
         self.target = target
         self.priority = priority
         self.name = name.encode("utf-8")[:63]
         self.cid = uuid.uuid4().bytes
         self.seq = {}
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = _make_socket(interface)
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 8)
+        if interface:
+            # Without this the OS picks the interface for multicast, which on a
+            # laptop is often Wi-Fi rather than the lighting network.
+            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
+                                 socket.inet_aton(interface))
 
     def _packet(self, universe, slots, options=0):
         seq = self.seq.get(universe, 0)
@@ -160,12 +178,12 @@ class SacnSender:
 class ArtnetSender:
     PORT = 6454
 
-    def __init__(self, target):
+    def __init__(self, target, interface=None):
         if not target:
             raise SystemExit("--target is required for Art-Net (e.g. 2.255.255.255)")
         self.target = target
         self.seq = {}
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = _make_socket(interface)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     def send(self, universe, slots):
@@ -213,6 +231,9 @@ def main(argv=None):
                    help="e.g. 1-20 or 1,2,5-8")
     p.add_argument("--protocol", choices=["sacn", "artnet"], default="sacn")
     p.add_argument("--target", help="unicast/broadcast IP (sACN defaults to multicast)")
+    p.add_argument("--interface", metavar="IP",
+                   help="this computer's IP address on the lighting network, so packets "
+                        "leave on that network and not e.g. Wi-Fi (recommended)")
     p.add_argument("--passes", type=int, default=5, help="times to repeat the image (default 5)")
     p.add_argument("--rate", type=float, default=25.0,
                    help="frames per second per universe (default 25); keep at or below "
@@ -225,6 +246,10 @@ def main(argv=None):
     p.add_argument("--dump", metavar="FILE",
                    help="write one pass of 512-byte frames to FILE instead of sending")
     args = p.parse_args(argv)
+    lo, hi = (1, 63999) if args.protocol == "sacn" else (0, 32767)
+    bad = [u for u in args.universes if not lo <= u <= hi]
+    if bad:
+        p.error("%s universes must be %d-%d; got %s" % (args.protocol, lo, hi, bad))
 
     with open(args.firmware, "rb") as f:
         image = f.read()
@@ -252,9 +277,9 @@ def main(argv=None):
         return 0
 
     if args.protocol == "sacn":
-        sender = SacnSender(args.target, args.priority, "Starboard firmware update")
+        sender = SacnSender(args.target, args.priority, "Starboard firmware update", args.interface)
     else:
-        sender = ArtnetSender(args.target)
+        sender = ArtnetSender(args.target, args.interface)
 
     per_pass = len(frames) / args.rate
     print("firmware: %s, for %s boards" % (ident, MODEL_NAMES[model].upper()))

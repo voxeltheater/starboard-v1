@@ -70,9 +70,9 @@ __attribute__((used)) const char FIRMWARE_ID[] = "SBFWID:" SB_STR(PCB_MODEL) ":"
 Adafruit_TLC59711 tlc = Adafruit_TLC59711(NUM_TLC59711, 18, 19);
 DmxInput dmxInput;
 
-// The current show frame. Only whole frames are copied in (by the DMX
-// interrupt), so the frame functions never see half of one frame and half of
-// the next.
+// The current show frame. The DMX interrupt copies in each complete frame in
+// one go (a few microseconds), instead of the DMA trickling bytes in while the
+// frame functions read it.
 volatile uint8_t buffer[DMXINPUT_BUFFER_SIZE(1, 512)];
 
 // --- Firmware update over DMX (src/dmx_update.h, tools/dmx_update.py) ---
@@ -181,6 +181,14 @@ volatile unsigned long lastDMXFrameMillis = 0;
 
 void loop(){
   serviceFirmwareUpdate();
+
+  // Mid-download, skip rendering entirely: the TLC59711s latch their last
+  // values so the rig holds its look, and the blocking test frames (up to
+  // 1.5 s per loop) would otherwise overflow the update queue.
+  if(downloadingFirmware()){
+    updateDebugLED(DMX_OK);
+    return;
+  }
 
   if(PCB_MODEL == PCB_RGB12){
     uint8_t b1 = digitalRead(10);
