@@ -16,9 +16,19 @@ Examples:
   python3 tools/dmx_update.py .pio/build/nanorp2040connect/firmware.bin \\
       --universes 40-71 --interface 10.0.0.5
 
-  # Art-Net, broadcast on the 2.x network
-  python3 tools/dmx_update.py firmware.bin \\
-      --protocol artnet --target 2.255.255.255 --universes 40-71
+  # Art-Net, unicast to the nodes whose names start with STARNET, which are
+  # found automatically; universes given in the console's sACN numbering
+  python3 tools/dmx_update.py firmware.bin --protocol artnet \\
+      --nodes STARNET --numbering sacn --universes 40-71 --interface 10.0.0.5
+
+  # same, but only show which node gets which universe (sends nothing)
+  python3 tools/dmx_update.py firmware.bin --protocol artnet \\
+      --nodes STARNET --numbering sacn --universes 40-71 --dry-run
+
+With Art-Net the sender asks the nodes (ArtPoll) whether any target port is
+merging another source, before sending and again a few seconds in, and stops
+if one is: a second source merging into the update universe corrupts most
+update packets, so boards never complete the image.
 
 Needs only the Python 3 standard library.
 """
@@ -178,10 +188,9 @@ class SacnSender:
 class ArtnetSender:
     PORT = 6454
 
-    def __init__(self, target, interface=None):
-        if not target:
-            raise SystemExit("--target is required for Art-Net (e.g. 2.255.255.255)")
-        self.target = target
+    def __init__(self, targets, interface=None):
+        """targets: {wire universe: [IP, ...]}"""
+        self.targets = targets
         self.seq = {}
         self.sock = _make_socket(interface)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -197,10 +206,88 @@ class ArtnetSender:
             + struct.pack("BBBB", seq, 0, universe & 0xFF, (universe >> 8) & 0x7F)
             + struct.pack(">H", SLOTS)
         )
-        self.sock.sendto(packet + slots, (self.target, self.PORT))
+        for ip in self.targets[universe]:
+            self.sock.sendto(packet + slots, (ip, self.PORT))
 
     def finish(self, universes):
         pass
+
+
+class ArtnetPoller:
+    """ArtPoll discovery. Replies come back to port 6454, so this needs its
+    own socket bound there (shared, in case a lighting app has it too)."""
+
+    def __init__(self, interface=None, broadcast=None):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.bind(("", ArtnetSender.PORT))
+        self.sock.setblocking(False)
+        self.dests = [broadcast] if broadcast else []
+        if interface and not broadcast:
+            # Assume a /24, the norm on lighting networks; --broadcast overrides.
+            self.dests.append(".".join(interface.split(".")[:3] + ["255"]))
+        self.dests.append("255.255.255.255")
+        self.ports = {}
+
+    def start(self):
+        self.ports = {}
+        poll = b"Art-Net\x00" + struct.pack("<H", 0x2000) + struct.pack(">H", 14) + b"\x00\x00"
+        for dest in self.dests:
+            try:
+                self.sock.sendto(poll, (dest, ArtnetSender.PORT))
+            except OSError:
+                pass
+
+    def collect(self):
+        """Read whatever replies have arrived; call repeatedly."""
+        while True:
+            try:
+                p, _ = self.sock.recvfrom(2048)
+            except (BlockingIOError, OSError):
+                return
+            if p[:10] != b"Art-Net\x00\x00\x21" or len(p) < 207:
+                continue
+            ip = ".".join(str(b) for b in p[10:14])
+            net, sub = p[18], p[19]
+            short = p[26:44].split(b"\x00")[0].decode("ascii", "replace").strip()
+            long_ = p[44:108].split(b"\x00")[0].decode("ascii", "replace").strip()
+            nports = struct.unpack(">H", p[172:174])[0]
+            for i in range(min(nports, 4)):
+                if not p[174 + i] & 0x80:  # PortTypes: can output DMX
+                    continue
+                uni = (net << 8) | (sub << 4) | (p[190 + i] & 0x0F)
+                good = p[182 + i]  # GoodOutput: bit 3 = merging Art-Net data
+                self.ports[(ip, uni)] = {"ip": ip, "short": short, "long": long_,
+                                         "universe": uni, "merging": bool(good & 0x08)}
+
+    def poll(self, seconds=2.5):
+        self.start()
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            self.collect()
+            time.sleep(0.05)
+        return list(self.ports.values())
+
+
+def merging_ports(ports, targets):
+    """Ports that are merging and that we're sending update data to."""
+    return [pt for pt in ports
+            if pt["merging"] and pt["universe"] in targets
+            and (pt["ip"] in targets[pt["universe"]] or _is_broadcast(targets[pt["universe"]]))]
+
+
+def _is_broadcast(ips):
+    return any(ip.endswith(".255") for ip in ips)
+
+
+def describe_merge(ports, numbering_offset):
+    return "; ".join("%s (%s) Art-Net %d%s" % (
+        pt["short"] or pt["long"], pt["ip"], pt["universe"],
+        "" if not numbering_offset else " = sACN %d" % (pt["universe"] + numbering_offset))
+        for pt in sorted(ports, key=lambda x: x["universe"]))
 
 
 def parse_universes(text):
@@ -231,6 +318,20 @@ def main(argv=None):
                    help="e.g. 1-20 or 1,2,5-8")
     p.add_argument("--protocol", choices=["sacn", "artnet"], default="sacn")
     p.add_argument("--target", help="unicast/broadcast IP (sACN defaults to multicast)")
+    p.add_argument("--nodes", metavar="PREFIX",
+                   help="Art-Net: find nodes whose name starts with PREFIX (e.g. STARNET) and "
+                        "send each universe only to the node(s) outputting it")
+    p.add_argument("--numbering", choices=["artnet", "sacn"],
+                   help="numbering --universes is given in (default: the protocol's own). "
+                        "With --protocol artnet --numbering sacn, sACN universe N is sent as "
+                        "Art-Net N-1, as these nodes map them")
+    p.add_argument("--broadcast", metavar="IP",
+                   help="Art-Net: where to send discovery polls (default: the --interface "
+                        "network's .255 and 255.255.255.255)")
+    p.add_argument("--allow-merge", action="store_true",
+                   help="Art-Net: send even if a target port is merging another source")
+    p.add_argument("--dry-run", action="store_true",
+                   help="show what would be sent where (and any merging), then stop")
     p.add_argument("--interface", metavar="IP",
                    help="this computer's IP address on the lighting network, so packets "
                         "leave on that network and not e.g. Wi-Fi (recommended)")
@@ -246,10 +347,20 @@ def main(argv=None):
     p.add_argument("--dump", metavar="FILE",
                    help="write one pass of 512-byte frames to FILE instead of sending")
     args = p.parse_args(argv)
-    lo, hi = (1, 63999) if args.protocol == "sacn" else (0, 32767)
+    numbering = args.numbering or args.protocol
+    if args.protocol == "sacn" and numbering == "artnet":
+        p.error("--numbering artnet with --protocol sacn isn't supported; give sACN universes")
+    lo, hi = (1, 63999) if numbering == "sacn" else (0, 32767)
     bad = [u for u in args.universes if not lo <= u <= hi]
     if bad:
-        p.error("%s universes must be %d-%d; got %s" % (args.protocol, lo, hi, bad))
+        p.error("%s universes must be %d-%d; got %s" % (numbering, lo, hi, bad))
+    # Offset from wire (Art-Net) numbering to the numbering the user gave.
+    offset = 1 if (args.protocol == "artnet" and numbering == "sacn") else 0
+    wire_universes = [u - offset for u in args.universes]
+    if args.protocol == "sacn" and args.nodes:
+        p.error("--nodes is for Art-Net; for sACN use multicast or --target")
+    if args.protocol == "artnet" and not args.nodes and not args.target and not args.dump:
+        p.error("Art-Net needs --nodes PREFIX (recommended) or --target IP")
 
     with open(args.firmware, "rb") as f:
         image = f.read()
@@ -276,26 +387,91 @@ def main(argv=None):
         print("wrote %d frames to %s" % (len(frames), args.dump))
         return 0
 
-    if args.protocol == "sacn":
-        sender = SacnSender(args.target, args.priority, "Starboard firmware update", args.interface)
+    def label(u):
+        return ("sACN %d = Art-Net %d" % (u + offset, u)) if offset else ("%s %d" % (args.protocol, u))
+
+    poller = None
+    if args.protocol == "artnet":
+        poller = ArtnetPoller(args.interface, args.broadcast)
+        print("polling Art-Net nodes...")
+        ports = poller.poll()
+        if args.nodes:
+            prefix = args.nodes.lower()
+            mine = [pt for pt in ports if pt["short"].lower().startswith(prefix)
+                    or pt["long"].lower().startswith(prefix)]
+            targets = {}
+            for pt in mine:
+                if pt["universe"] in wire_universes:
+                    targets.setdefault(pt["universe"], [])
+                    if pt["ip"] not in targets[pt["universe"]]:
+                        targets[pt["universe"]].append(pt["ip"])
+            missing = [u for u in wire_universes if u not in targets]
+            names = {pt["ip"]: pt["short"] or pt["long"] for pt in mine}
+            if not mine:
+                raise SystemExit("no Art-Net nodes named %s* answered (check --interface / "
+                                 "--broadcast and that this computer is on their network)" % args.nodes)
+            for u in wire_universes:
+                if u in targets:
+                    print("  %-24s -> %s" % (label(u), ", ".join(
+                        "%s (%s)" % (names[ip], ip) for ip in targets[u])))
+            if missing:
+                raise SystemExit("no %s* node outputs: %s. Check the universe numbers "
+                                 "(--numbering?) and that every node answered."
+                                 % (args.nodes, ", ".join(label(u) for u in missing)))
+        else:
+            targets = {u: [args.target] for u in wire_universes}
+        merging = merging_ports(ports, targets)
+        if merging:
+            msg = "already merging another source: " + describe_merge(merging, offset)
+            if not args.allow_merge:
+                raise SystemExit("STOP - %s.\nTurn the other source off (it corrupts the "
+                                 "update) or pass --allow-merge." % msg)
+            print("warning: " + msg)
+        if args.dry_run:
+            print("dry run: nothing sent.")
+            return 0
+        sender = ArtnetSender(targets, args.interface)
     else:
-        sender = ArtnetSender(args.target, args.interface)
+        if args.dry_run:
+            print("dry run: would send sACN to universes %s (%s)."
+                  % (args.universes, args.target or "multicast"))
+            return 0
+        sender = SacnSender(args.target, args.priority, "Starboard firmware update", args.interface)
 
     per_pass = len(frames) / args.rate
     print("firmware: %s, for %s boards" % (ident, MODEL_NAMES[model].upper()))
     print("image: %d bytes%s, CRC %08X, %d chunks"
           % (len(image), "" if args.no_gzip else " (gzip of %d)" % raw_size,
              zlib.crc32(image), len(data)))
-    print("%s to universes %s: %d passes, ~%.0f s each, ~%.0f s total"
-          % (args.protocol, args.universes, args.passes, per_pass, per_pass * args.passes))
+    print("%s to %d universe(s): %d passes, ~%.0f s each, ~%.0f s total"
+          % (args.protocol, len(wire_universes), args.passes, per_pass, per_pass * args.passes))
 
+    # A few seconds in, ask the nodes again: a source that was idle at the
+    # pre-check, or one only merging now that we're sending, shows up here.
+    recheck_at = time.monotonic() + 3.0
+    recheck_until = None
     interval = 1.0 / args.rate
     next_time = time.monotonic()
     try:
         for n in range(args.passes):
             for i, frame in enumerate(frames):
-                for u in args.universes:
+                for u in wire_universes:
                     sender.send(u, frame)
+                if poller and not args.allow_merge:
+                    now = time.monotonic()
+                    if recheck_until is None and now >= recheck_at:
+                        poller.start()
+                        recheck_until = now + 2.5
+                    elif recheck_until is not None:
+                        poller.collect()
+                        if now >= recheck_until and recheck_until > 0:
+                            merging = merging_ports(list(poller.ports.values()), sender.targets)
+                            if merging:
+                                print("\nSTOPPED - merging another source: %s.\nTurn the other "
+                                      "source off and rerun (nothing was installed)."
+                                      % describe_merge(merging, offset))
+                                return 1
+                            recheck_until = 0  # checked; don't repeat
                 next_time += interval
                 delay = next_time - time.monotonic()
                 if delay > 0:
@@ -308,7 +484,7 @@ def main(argv=None):
         print("\ninterrupted. Boards only install a complete image, so nothing partial was "
               "installed; rerun to finish (boards keep what they have until they reboot).")
     finally:
-        sender.finish(args.universes)
+        sender.finish(wire_universes)
     return 0
 
 
