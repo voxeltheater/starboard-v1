@@ -4,3 +4,11 @@
 .vscode/launch.json
 .vscode/ipch
 __pycache__/
+
+# Starboard Updater test harness build
+test/app/.build/
+
+# Xcode
+app/build/
+xcuserdata/
+*.xcuserstate

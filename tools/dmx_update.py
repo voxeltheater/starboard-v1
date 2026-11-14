@@ -8,6 +8,9 @@ install the new firmware and reboot once they have a complete, verified copy.
 Boards can't reply over DMX, so the image is repeated for several passes to
 give every board a chance to fill in anything it missed.
 
+The Starboard Updater app (app/) does the same with a UI; this command-line
+version is the reference the app is tested against (test/app/run.sh).
+
 Stop the console (or anything else outputting to these universes) first:
 two sources on one universe will interleave and slow the update to a crawl.
 

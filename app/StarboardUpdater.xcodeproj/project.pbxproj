@@ -1,0 +1,417 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0016A5BA5314EBF4DADDA992 /* firmware in Resources */ = {isa = PBXBuildFile; fileRef = 304FE7635B68E785CCC252A2 /* firmware */; };
+		0F09EB3C3E2F273193B0F52E /* Network.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B43B68DACB0D0292E012031 /* Network.swift */; };
+		2636A11F381A2148C9A18586 /* DMXUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A053889213C6BE82FB926C /* DMXUpdater.swift */; };
+		3D1859324858C8B9A470EDFD /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B518B03939ECA378274608FA /* AppModel.swift */; };
+		42A6569AEDDC86AB00F59576 /* DMXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E243FE9F2CA5DA8EB22C63 /* DMXView.swift */; };
+		458E34BC40314BD2DD4EFCAE /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = D933D42A595277FC3DAAC472 /* Log.swift */; };
+		7075DEFA6EC92FE679BA1BE9 /* USB.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EAAAFA0E2EE03E28B5EA204 /* USB.swift */; };
+		742BADBC9B54F928E2220514 /* USBView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E82531C709319068522D035 /* USBView.swift */; };
+		7F79AE2DDD64DC0CFC3EEB4C /* Firmware.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BDF5ADFD0B22A2AE023AB4 /* Firmware.swift */; };
+		8285542F40174D2BFDBB479C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957C320CEEB7688DC2471170 /* ContentView.swift */; };
+		BA46C924A8C8575607B0DCF2 /* StarboardUpdaterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */; };
+		D1092FACBFAD403AB45869B3 /* USBFlasher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6EDD39D3EA8EDF443F28AA0 /* USBFlasher.swift */; };
+		F2DCE04719636296009F9D98 /* UpdateProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B486229A5CD5427ABC49A4F /* UpdateProtocol.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		09BDF5ADFD0B22A2AE023AB4 /* Firmware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Firmware.swift; sourceTree = "<group>"; };
+		0B486229A5CD5427ABC49A4F /* UpdateProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProtocol.swift; sourceTree = "<group>"; };
+		304FE7635B68E785CCC252A2 /* firmware */ = {isa = PBXFileReference; lastKnownFileType = folder; name = firmware; path = ../firmware; sourceTree = SOURCE_ROOT; };
+		3EAAAFA0E2EE03E28B5EA204 /* USB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USB.swift; sourceTree = "<group>"; };
+		4C2B654A79D57236A1BF7774 /* StarboardUpdater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarboardUpdater.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E82531C709319068522D035 /* USBView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBView.swift; sourceTree = "<group>"; };
+		87E243FE9F2CA5DA8EB22C63 /* DMXView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMXView.swift; sourceTree = "<group>"; };
+		92A053889213C6BE82FB926C /* DMXUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMXUpdater.swift; sourceTree = "<group>"; };
+		957C320CEEB7688DC2471170 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		9B43B68DACB0D0292E012031 /* Network.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Network.swift; sourceTree = "<group>"; };
+		A6EDD39D3EA8EDF443F28AA0 /* USBFlasher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBFlasher.swift; sourceTree = "<group>"; };
+		A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarboardUpdaterApp.swift; sourceTree = "<group>"; };
+		B518B03939ECA378274608FA /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		D933D42A595277FC3DAAC472 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		299A6838BC65C27512451DB0 /* starboard-v1 */ = {
+			isa = PBXGroup;
+			children = (
+				304FE7635B68E785CCC252A2 /* firmware */,
+			);
+			name = "starboard-v1";
+			path = ..;
+			sourceTree = "<group>";
+		};
+		43094808899FD7A813A27BC7 /* StarboardUpdater */ = {
+			isa = PBXGroup;
+			children = (
+				B518B03939ECA378274608FA /* AppModel.swift */,
+				A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */,
+				F8C073D0F2328E2AF093744F /* Engine */,
+				70528A7A1F417C33AEDA4878 /* Views */,
+			);
+			path = StarboardUpdater;
+			sourceTree = "<group>";
+		};
+		6198F52FF57FBF8EFA92F3DC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4C2B654A79D57236A1BF7774 /* StarboardUpdater.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		70528A7A1F417C33AEDA4878 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				957C320CEEB7688DC2471170 /* ContentView.swift */,
+				87E243FE9F2CA5DA8EB22C63 /* DMXView.swift */,
+				5E82531C709319068522D035 /* USBView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		952CD77E30B056478BF5B4A7 = {
+			isa = PBXGroup;
+			children = (
+				299A6838BC65C27512451DB0 /* starboard-v1 */,
+				43094808899FD7A813A27BC7 /* StarboardUpdater */,
+				6198F52FF57FBF8EFA92F3DC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F8C073D0F2328E2AF093744F /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				92A053889213C6BE82FB926C /* DMXUpdater.swift */,
+				09BDF5ADFD0B22A2AE023AB4 /* Firmware.swift */,
+				D933D42A595277FC3DAAC472 /* Log.swift */,
+				9B43B68DACB0D0292E012031 /* Network.swift */,
+				0B486229A5CD5427ABC49A4F /* UpdateProtocol.swift */,
+				3EAAAFA0E2EE03E28B5EA204 /* USB.swift */,
+				A6EDD39D3EA8EDF443F28AA0 /* USBFlasher.swift */,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C706771E21A52316A72BC9B4 /* StarboardUpdater */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6A5E1878C658E04C8742DE24 /* Build configuration list for PBXNativeTarget "StarboardUpdater" */;
+			buildPhases = (
+				CC524C49288FF722605CCCAF /* Sources */,
+				B4DE86D788A2030ABCA2C4DE /* Resources */,
+				FA2603A4CFDA526C4098A33C /* Bundle picotool */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StarboardUpdater;
+			packageProductDependencies = (
+			);
+			productName = StarboardUpdater;
+			productReference = 4C2B654A79D57236A1BF7774 /* StarboardUpdater.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A9C160571C4C304752FF18B5 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C706771E21A52316A72BC9B4 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 8ABC74EF0301624CA584E173 /* Build configuration list for PBXProject "StarboardUpdater" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 952CD77E30B056478BF5B4A7;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6198F52FF57FBF8EFA92F3DC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C706771E21A52316A72BC9B4 /* StarboardUpdater */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B4DE86D788A2030ABCA2C4DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0016A5BA5314EBF4DADDA992 /* firmware in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		FA2603A4CFDA526C4098A33C /* Bundle picotool */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle picotool";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Copies PlatformIO's picotool (and its libusb) into the app, so the\n# app works on Macs without PlatformIO. picotool: BSD-3-Clause;\n# libusb: LGPL-2.1, used as an unmodified separate library.\nSRC=\"$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower\"\nDEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/picotool\"\nif [ -x \"$SRC/picotool\" ]; then\n  mkdir -p \"$DEST\"\n  cp -f \"$SRC/picotool\" \"$SRC/libusb-1.0.0.dylib\" \"$DEST/\"\n  cp -f \"$SRC/LICENSE.TXT\" \"$DEST/LICENSE-picotool.txt\"\n  codesign --force --sign - \"$DEST/libusb-1.0.0.dylib\" \"$DEST/picotool\"\nelse\n  echo \"warning: picotool not found at $SRC. Build the firmware once with PlatformIO, then rebuild the app; until then USB flashing only works on Macs with PlatformIO or Homebrew picotool.\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CC524C49288FF722605CCCAF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D1859324858C8B9A470EDFD /* AppModel.swift in Sources */,
+				8285542F40174D2BFDBB479C /* ContentView.swift in Sources */,
+				2636A11F381A2148C9A18586 /* DMXUpdater.swift in Sources */,
+				42A6569AEDDC86AB00F59576 /* DMXView.swift in Sources */,
+				7F79AE2DDD64DC0CFC3EEB4C /* Firmware.swift in Sources */,
+				458E34BC40314BD2DD4EFCAE /* Log.swift in Sources */,
+				0F09EB3C3E2F273193B0F52E /* Network.swift in Sources */,
+				BA46C924A8C8575607B0DCF2 /* StarboardUpdaterApp.swift in Sources */,
+				7075DEFA6EC92FE679BA1BE9 /* USB.swift in Sources */,
+				D1092FACBFAD403AB45869B3 /* USBFlasher.swift in Sources */,
+				742BADBC9B54F928E2220514 /* USBView.swift in Sources */,
+				F2DCE04719636296009F9D98 /* UpdateProtocol.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		6D64F3050DFAB0B039E08328 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.3;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		746153D7D0C254D247E130F1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.3;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		86579B7E3C4C4646D087792A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Starboard Updater";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Starboard Updater finds your Art-Net nodes and sends firmware updates to boards over the lighting network.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.voxeltheater.starboard-updater";
+				PRODUCT_NAME = "Starboard Updater";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		8BA5B0A43263CF81CBC0B3F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Starboard Updater";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Starboard Updater finds your Art-Net nodes and sends firmware updates to boards over the lighting network.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.voxeltheater.starboard-updater";
+				PRODUCT_NAME = "Starboard Updater";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		6A5E1878C658E04C8742DE24 /* Build configuration list for PBXNativeTarget "StarboardUpdater" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				86579B7E3C4C4646D087792A /* Debug */,
+				8BA5B0A43263CF81CBC0B3F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8ABC74EF0301624CA584E173 /* Build configuration list for PBXProject "StarboardUpdater" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6D64F3050DFAB0B039E08328 /* Debug */,
+				746153D7D0C254D247E130F1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A9C160571C4C304752FF18B5 /* Project object */;
+}

@@ -1,61 +1,155 @@
 # Starboard firmware
 
 Firmware for the Starboard V1 LED driver boards (RP2040 with TLC59711 LED
-drivers, fed over DMX). This repo is named for the **V1 hardware**. The
-firmware itself is now **v2** (tag `v2.0.0`).
+drivers, fed over DMX), and **Starboard Updater**, the Mac app that installs
+it. This repo is named for the **V1 hardware**; the current firmware is
+**1.3**.
 
-## What's new in firmware v2
+## What's new in 1.3
 
 - **Quiet debug LED.** The green LED double-flashes at power-up, double-flashes
   again the first time DMX arrives, and then stays dark until the next power
   cycle. Faults are reported over USB serial only.
-- **Firmware updates over DMX.** `tools/dmx_update.py` updates every board in
-  the rig at once, through your existing Art-Net or sACN nodes.
-- **USB auto-flasher.** `tools/usb_flash.py` flashes boards as you plug them in,
-  including boards still on the old v1 firmware.
+- **Firmware updates over DMX.** Update every board in the rig at once,
+  through your existing Art-Net or sACN nodes.
+- **Starboard Updater app.** Flash boards over USB as you plug them in, or
+  update the whole rig over DMX, from one window.
+- **Firmware versions.** Boards report which release they run, such as
+  `v1.3`.
 - **All red / all green / all blue test looks** on RGB12 boards (channel 511).
-- **New core.** v2 moved from the Arduino mbed core to
+- **MONO12 addressing fix.** Drops 25–41 now work; before, they all landed on
+  drop 24.
+- **New core.** 1.3 moved from the Arduino mbed core to
   [arduino-pico](https://github.com/earlephilhower/arduino-pico), which
-  provides the safe update bootloader. **Boards on v1 firmware can't take DMX
-  updates.** Each one needs a single USB flash first; after that, every update
-  can go over DMX.
+  provides the safe update bootloader. **Boards on pre-1.3 firmware can't take
+  DMX updates.** Each one needs a single USB flash first; after that, every
+  update can go over DMX.
 
-## Quick reference
+## Starboard Updater (the app)
 
-| I want to... | Do this |
+Open `app/StarboardUpdater.xcodeproj` in Xcode and press Run, or build it from
+the command line:
+
+```sh
+cd app && xcodebuild -scheme StarboardUpdater -configuration Release -derivedDataPath build build
+open "build/Build/Products/Release/Starboard Updater.app"
+```
+
+Build the firmware once with PlatformIO before building the app: the app
+bundles PlatformIO's `picotool` for USB flashing. The app is Apple silicon
+only, because that `picotool` is.
+
+At the top of the window, pick the **board type** and the **firmware**. The
+newest release is chosen by default; **Other build…** takes a `.pio/build/…`
+folder for testing a development build. Both tabs use what's picked here.
+
+### USB tab
+
+Press **Start Flashing** and plug boards in one at a time. Each board is
+checked, flashed, verified and announced with a sound:
+
+| Line | Meaning |
 |---|---|
-| Build firmware | `pio run` (RGB12) or `pio run -e mono12` |
-| Put v2 on a board by hand | Run `tools/usb_flash.py` and plug the board in |
-| Update the whole rig | Build, then run `tools/dmx_update.py` (see below) |
-| Check which build a board runs | Open its USB serial port at 115200 baud and send `?` |
-| Run the update-protocol tests | `sh test/host/run.sh` |
+| ✅ | Flashed and verified running the new firmware. Unplug it. |
+| 👍 | Already on this firmware. Nothing to do. |
+| 🚫 | Refused: the board is a different type. Pick its type above. |
+| ❌ / ⚠️ | Something failed. The message says what to try. |
 
-## Board types and builds
+Things to know:
 
-Each board type needs its own build. Every image records the type it was built
-for, so boards ignore DMX updates meant for another type. The USB flasher also
-refuses to cross-flash a board that's running v2.
+- **Pre-1.3 boards: plug USB in before powering the board**, or power-cycle it
+  after plugging in. A powered pre-1.3 board doesn't show up on the Mac until
+  it restarts.
+- **Keep board types in separate batches.** Pre-1.3 and blank boards can't
+  report their type, so they get whichever type is picked. Boards on 1.3 or
+  later are type-checked and refused if they don't match.
+- **Close anything holding the board's serial port**, such as a serial
+  monitor.
 
-| Board | Build command | Output | DMX footprint, start address |
-|---|---|---|---|
-| RGB12 (default) | `pio run` | `.pio/build/nanorp2040connect/` | 36 ch, starts at 33 × dial + 1 |
-| MONO12 | `pio run -e mono12` | `.pio/build/mono12/` | 12 ch, starts at 12 × drop + 1 (drops 0–41) |
-| MONO20 | set `PCB_MODEL` to `PCB_MONO20` | | 20 ch, starts at 20 × drop + 1 (drops 0–24) |
+### DMX tab
+
+This updates every board of the picked type on the given universes at once.
+Updating ~100 boards on 32 universes takes about 30 seconds. Boards hold their
+current look while the data plays. Each board then installs the update,
+double-flashes and comes back on its own.
+
+The settings default to this rig: Art-Net, nodes named `STARNET…`, universes
+`40-71` numbered as on the console. The app remembers whatever you change.
+
+1. **Turn off the console and every other DMX source on those universes.** A
+   second source merges into the update data and corrupts it. Boards then
+   never complete the image, so they just stay on their current firmware.
+2. **Send from:** pick this Mac's address on the lighting network
+   (`192.168.5.x` here).
+3. **Check Nodes** finds the nodes and lists which one gets each universe,
+   along with any node reporting a merge. It sends no DMX.
+4. **Send Update…** asks you to confirm other sources are off, then sends.
+   Run each board type as its own send.
+
+How it works:
+
+- **Node discovery.** Nodes are found by name with ArtPoll, and each universe
+  goes only to the node that outputs it. The app keeps polling until every
+  universe's node has answered, which can take a few seconds over Wi-Fi.
+- **Universe numbering.** These nodes put sACN universe N on Art-Net universe
+  N − 1. With "Numbered as on the console" ticked, you type the console's
+  numbers and the app translates.
+- **Merge check.** The app refuses to start if a node reports merging another
+  source, and checks again a few seconds into the send. It has caught live
+  merges on this rig but once missed one, so still turn other sources off.
+- **sACN** works too: it multicasts at priority 200.
+
+Safety:
+
+- **Nothing is written to flash until a board has the whole image.** The
+  image's checksum must match, and it must be built for that board type.
+- **Power loss during a download** is harmless. The board keeps its current
+  firmware.
+- **Power loss during the few seconds of install** is handled by the
+  arduino-pico bootloader, which finishes the copy on the next boot.
+- **Boards skip an image they're already running,** so repeating a send is
+  safe.
+- **If a board didn't update,** check for a second source on its universe.
+  Then send again, or flash that board over USB.
+
+## Firmware releases
+
+Every release lives in `firmware/<version>/`: a `.uf2` (USB) and a `.bin` (DMX)
+for each board type, plus `RELEASE.txt` recording the commit it was built
+from. The app bundles the whole folder, so each app build carries every
+release, newest first.
+
+To make a release:
+
+1. Make and test your firmware changes. Use `pio run -e rgb12`, and the app's
+   **Other build…** pointed at `.pio/build/rgb12`.
+2. Bump `FIRMWARE_VERSION` in `src/main.cpp`, for example to `"1.3.1"` or
+   `"1.4"`, and commit.
+3. Run `sh tools/release.sh`. It builds all three board types into
+   `firmware/<version>/`.
+4. Commit `firmware/<version>/`, then rebuild the app.
+
+The script refuses to overwrite an existing version or to build from
+uncommitted changes. Boards and the app identify a release by its version, so
+the files behind a version never change.
+
+Boards report `SBFWID:<type>:<build time>:<version>`, where type 0 = RGB12,
+1 = MONO20 and 2 = MONO12. Send `?` over USB serial at 115200 baud to get it.
+
+## Boards and DMX
+
+| Board | Build | DMX footprint, start address |
+|---|---|---|
+| RGB12 | `pio run -e rgb12` (the default) | 36 ch, starts at 33 × dial + 1 |
+| MONO12 | `pio run -e mono12` | 12 ch, starts at 12 × drop + 1 (drops 0–41) |
+| MONO20 | `pio run -e mono20` | 20 ch, starts at 20 × drop + 1 (drops 0–24) |
 
 Dial notes:
 
 - **Mono boards:** drop = dial 1 × 10 + dial 2.
 - **Test patterns from the dials:** RGB12 dial 15 or mono dial 1 = 15.
 
-Every build gets a fresh build ID (the time it was built). Boards report it as
-`SBFWID:<type>:<build time>`, where type 0 = RGB12, 1 = MONO20 and 2 = MONO12.
-The tools use it to skip boards that already run that exact build.
-
-Use `firmware.uf2` for USB and `firmware.bin` for DMX updates.
-
-## DMX control channels
-
-These are the last five channels of each universe:
+The last five channels of each universe are control channels:
 
 | Channel | Purpose |
 |---|---|
@@ -77,121 +171,20 @@ Channel 511 modes:
 | 120–134 | All green (RGB12) |
 | 140–154 | All blue (RGB12) |
 
-## USB auto-flasher: `tools/usb_flash.py`
-
-Leave it running and plug boards in one at a time. It works out what each
-board needs, flashes it, verifies it, and rings a bell when you can unplug it.
-
-```sh
-# RGB12 boards (flashes the current RGB12 build)
-~/.platformio/penv/bin/python tools/usb_flash.py
-
-# MONO12 boards
-~/.platformio/penv/bin/python tools/usb_flash.py --uf2 .pio/build/mono12/firmware.uf2
-```
-
-What you'll see:
-
-| Line | Meaning |
-|---|---|
-| ✅ | Flashed and verified running the new build. Unplug it. |
-| 👍 | Already on this build. Nothing to do. |
-| 🚫 | Refused: the board is a different type from this firmware. |
-| ❌ / ⚠️ | Something failed. The message says what to try. |
-
-Things to know:
-
-- **Use PlatformIO's Python** as shown, because it already includes pyserial.
-  Plain `python3` fails without it.
-- **v1 boards: plug USB in before powering the board**, or power-cycle it
-  after plugging in. A powered v1 board doesn't show up on the Mac until it
-  restarts.
-- **Restart the flasher after every rebuild.** It loads the firmware once at
-  startup. Run an old copy and it will flash boards back to the older build.
-- **Keep board types in separate batches.** v1 and blank boards can't report
-  their type, so they get whichever build the flasher was started with. Only
-  boards already on v2 are type-checked.
-- **Close anything holding the board's serial port**, such as a serial
-  monitor, so the flasher can talk to the board.
-
-## Updating the rig over DMX: `tools/dmx_update.py`
-
-This sends a `firmware.bin` to every board on the given universes at once.
-Updating ~100 boards on 32 universes takes about 30 seconds. Boards hold their
-current look while the data plays. Each board then installs the update,
-double-flashes and comes back on its own.
-
-### Before you send
-
-1. **Build** the firmware for the boards you're updating.
-2. **Turn off the console and every other DMX source on those universes.** A
-   second source merges into the update data and corrupts it. Boards then
-   never complete the image, so they just stay on their current firmware.
-3. **Find your Mac's IP on the lighting network.** You'll pass it as
-   `--interface`.
-
-### Our rig
-
-Universes 40–71 in the console's (sACN) numbering, sent over Art-Net to the
-nodes named `STARNET …`:
-
-```sh
-# 1. Dry run: shows which node gets each universe, and any merging. Sends nothing.
-python3 tools/dmx_update.py .pio/build/nanorp2040connect/firmware.bin \
-    --protocol artnet --nodes STARNET --numbering sacn --universes 40-71 \
-    --interface <your IP> --dry-run
-
-# 2. The real thing (asks you to confirm other sources are off)
-python3 tools/dmx_update.py .pio/build/nanorp2040connect/firmware.bin \
-    --protocol artnet --nodes STARNET --numbering sacn --universes 40-71 \
-    --interface <your IP>
-```
-
-For MONO12 boards, pass `.pio/build/mono12/firmware.bin` instead. Run each
-board type as its own send.
-
-How it works:
-
-- **Node discovery.** `--nodes STARNET` finds the nodes by name with ArtPoll
-  and sends each universe only to the node that outputs it. It keeps polling
-  until every universe's node has answered, which can take a few seconds over
-  Wi-Fi.
-- **Universe numbering.** `--numbering sacn` lets you use the console's
-  numbers. These nodes put sACN universe N on Art-Net universe N − 1, and the
-  tool translates for you.
-- **Merge check.** The tool asks the nodes whether any target port is merging
-  another source. It refuses to start if one is, and checks again a few
-  seconds in. It has caught live merges on this rig, but it once missed one,
-  so still turn other sources off.
-- **sACN** works too. Leave out `--protocol artnet`, and it multicasts at
-  priority 200 by default.
-
-### Safety
-
-- **Nothing is written to flash until a board has the whole image.** The
-  image's checksum must match, and it must be built for that board type.
-- **Power loss during a download** is harmless. The board just keeps its
-  current firmware.
-- **Power loss during the few seconds of install** is handled by the
-  arduino-pico bootloader, which finishes the copy on the next boot.
-- **Boards skip an image they're already running,** so repeating a send is
-  safe.
-- **If a board didn't update,** check for a second source on its universe.
-  Then send again, or flash that board over USB.
-
-Run `python3 tools/dmx_update.py --help` for every option. The packet format
-is documented in `src/dmx_update.h`.
-
-## Serial output
-
-Each board reports on USB serial at 115200 baud:
+Each board also reports on USB serial at 115200 baud:
 
 - its firmware ID at boot;
-- DMX faults (no signal, bad start code, all-0xFF data, address out of range);
+- DMX faults;
 - update download progress;
 - a periodic line of the LED values for its address.
 
-Send `?` to get the firmware ID back.
+## Tests
+
+- `sh test/host/run.sh`: the update protocol, round-tripped through the Python
+  sender and the board's receiver code. No hardware needed.
+- `sh test/app/run.sh`: checks the app's engine against the Python sender.
+  Update frames and sACN/Art-Net packets must be byte-for-byte identical, and
+  the app's gzip must unpack exactly.
 
 ## Repo layout
 
@@ -199,8 +192,10 @@ Send `?` to get the firmware ID back.
 |---|---|
 | `src/main.cpp` | Firmware: DMX input, LED output, test patterns, debug LED |
 | `src/dmx_update.*` | Board side of DMX firmware updates |
-| `tools/dmx_update.py` | Sends firmware over DMX (standard-library Python) |
-| `tools/usb_flash.py` | USB auto-flasher |
+| `firmware/` | Released builds, bundled into the app |
+| `app/` | Starboard Updater (SwiftUI). `Engine/` has no UI code; `project.yml` regenerates the Xcode project with XcodeGen |
+| `tools/release.sh` | Builds a release into `firmware/<version>/` |
+| `tools/dmx_update.py` | Command-line DMX updater; the reference the app is tested against |
 | `lib/Adafruit_TLC59711/` | Vendored TLC59711 library with an arduino-pico fix (see its `STARBOARD.md`) |
-| `test/host/` | Host round-trip test of the update protocol; no hardware needed |
-| `platformio.ini` | Build settings and board-type builds |
+| `test/` | Host tests (above) |
+| `platformio.ini` | Build settings, one env per board type |
