@@ -51,6 +51,10 @@ final class USBFlashJob {
             if USBDevices.bootselPresent() {
                 log("Board in bootloader: flashing \(target.label)…", .work)
                 if flash(picotool) {
+                    // macOS keeps listing the boot ROM for a moment after
+                    // picotool reboots the board. Without this wait the next
+                    // pass would try to flash it again and fail.
+                    waitFor(seconds: 5) { !USBDevices.bootselPresent() }
                     log("Written and verified, waiting for it to start…", .dim)
                     pending += 1
                     pendingSince = Date()
@@ -126,7 +130,7 @@ final class USBFlashJob {
                 log("WARNING: a flashed board didn't come back running \(target.label) within \(Int(USBFlashJob.verifyWait)) s. Check it (unplug and replug to retry).", .warn)
                 pending = 0
             }
-            stopFlag.sleep(0.5)
+            stopFlag.sleep(pending > 0 ? 0.2 : 0.5) // check sooner while a flashed board restarts
         }
         log("Stopped. \(done) board\(done == 1 ? "" : "s") flashed and verified.", .plain)
     }
