@@ -25,10 +25,14 @@ enum ReleaseStore {
         var removed: [String] = []      // versions withdrawn from GitHub
     }
 
-    /// Brings the cache in line with GitHub: downloads new or changed files
-    /// and removes releases that were deleted there (a pulled release must not
-    /// stay flashable). Blocking; call off the main thread. Throws, leaving
-    /// the cache untouched, if GitHub can't be reached.
+    /// Brings the cache in line with GitHub. Withdrawals come first: releases
+    /// deleted on GitHub, and files removed from a release, are deleted from
+    /// the cache before anything downloads, so a pulled release can't stay
+    /// flashable because a later download failed. Then new or changed files
+    /// download, each checked against GitHub's size and sha256 before it
+    /// replaces anything. Blocking; call off the main thread. Throws, leaving
+    /// the cache untouched, if the release list can't be fetched; throws after
+    /// syncing everything else if a download fails.
     static func sync(api: URL = apiURL, into cache: URL = cache) throws -> Summary {
         var request = URLRequest(url: api, timeoutInterval: 10)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -41,40 +45,62 @@ enum ReleaseStore {
             throw FirmwareError("GitHub's release list wasn't readable.")
         }
 
-        let fm = FileManager.default
-        try fm.createDirectory(at: cache, withIntermediateDirectories: true)
-        var summary = Summary()
-        var keep = Set<String>()
+        // What should be cached: version -> (release, [(asset, local file name)]).
+        var wanted: [String: (GHRelease, [(GHAsset, String)])] = [:]
         for release in releases where !release.draft {
             guard let version = release.version else { continue }
             let assets = release.assets.compactMap { asset in asset.localName.map { (asset, $0) } }
-            guard !assets.isEmpty else { continue }
-            keep.insert(version)
-            summary.releases += 1
+            if !assets.isEmpty { wanted[version] = (release, assets) }
+        }
+
+        let fm = FileManager.default
+        try fm.createDirectory(at: cache, withIntermediateDirectories: true)
+        var summary = Summary(releases: wanted.count)
+
+        // 1. Withdrawals.
+        for version in (try? fm.contentsOfDirectory(atPath: cache.path)) ?? [] where !version.hasPrefix(".") {
+            let dir = cache.appendingPathComponent(version)
+            guard let (_, assets) = wanted[version] else {
+                try? fm.removeItem(at: dir)
+                summary.removed.append(version)
+                continue
+            }
+            let names = Set(assets.map(\.1)).union([ReleaseInfo.file])
+            for file in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] where !names.contains(file) {
+                try? fm.removeItem(at: dir.appendingPathComponent(file))
+            }
+        }
+
+        // 2. Downloads. One failure doesn't stop the other releases.
+        var failures: [String] = []
+        for (version, (release, assets)) in wanted.sorted(by: { $0.key < $1.key }) {
             let dir = cache.appendingPathComponent(version, isDirectory: true)
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let info = ReleaseInfo(tag: release.tag_name, prerelease: release.prerelease,
+                                   published: release.published_at)
+            try JSONEncoder().encode(info).write(to: dir.appendingPathComponent(ReleaseInfo.file))
             for (asset, name) in assets {
                 let dest = dir.appendingPathComponent(name)
                 if matches(dest, asset) { continue }
                 let part = dir.appendingPathComponent(name + ".part")
-                try? fm.removeItem(at: part)
-                try fetch(URLRequest(url: asset.browser_download_url, timeoutInterval: 30)).write(to: part)
-                guard matches(part, asset) else {
-                    try? fm.removeItem(at: part)
-                    throw FirmwareError("\(asset.name) from GitHub failed its size or checksum check.")
+                defer { try? fm.removeItem(at: part) }
+                do {
+                    try fetch(URLRequest(url: asset.browser_download_url, timeoutInterval: 30)).write(to: part)
+                    guard matches(part, asset) else {
+                        throw FirmwareError("failed its size or checksum check")
+                    }
+                    try? fm.removeItem(at: dest)
+                    try fm.moveItem(at: part, to: dest)
+                    summary.downloaded.append("\(version) \(name)")
+                } catch {
+                    // Don't leave an old copy that GitHub no longer matches.
+                    try? fm.removeItem(at: dest)
+                    failures.append("\(asset.name): \(error.localizedDescription)")
                 }
-                try? fm.removeItem(at: dest)
-                try fm.moveItem(at: part, to: dest)
-                summary.downloaded.append("\(version) \(name)")
             }
-            let info = ReleaseInfo(tag: release.tag_name, prerelease: release.prerelease,
-                                   published: release.published_at)
-            try JSONEncoder().encode(info).write(to: dir.appendingPathComponent(ReleaseInfo.file))
         }
-        let cached = (try? fm.contentsOfDirectory(atPath: cache.path)) ?? []
-        for version in cached where !version.hasPrefix(".") && !keep.contains(version) {
-            try? fm.removeItem(at: cache.appendingPathComponent(version))
-            summary.removed.append(version)
+        if !failures.isEmpty {
+            throw FirmwareError("Some downloads failed (\(failures.joined(separator: "; ")))")
         }
         return summary
     }

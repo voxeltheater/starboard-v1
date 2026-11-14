@@ -37,8 +37,15 @@ fi
 
 stage=".release/$version"
 if [ -f "$stage/RELEASE.txt" ]; then
-  echo "Publishing the build already staged in $stage:"
   commit=$(sed -n 's/^commit: //p' "$stage/RELEASE.txt")
+  # Only reuse it if the firmware source still matches what it was built from
+  # (comment-only changes to platformio.ini don't count).
+  if ! git diff --quiet -I '^[[:space:]]*;' "$commit" -- src lib platformio.ini; then
+    echo "$stage was built from $commit, but the firmware source has changed since."
+    echo "Bump FIRMWARE_VERSION for the new code, or delete $stage to rebuild $version."
+    exit 1
+  fi
+  echo "Publishing the build already staged in $stage:"
 else
   if ! git diff --quiet HEAD -- src lib platformio.ini; then
     echo "Commit your firmware changes first, so the release matches a commit:"

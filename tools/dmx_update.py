@@ -367,7 +367,12 @@ def main(argv=None):
     numbering = args.numbering or args.protocol
     if args.protocol == "sacn" and numbering == "artnet":
         p.error("--numbering artnet with --protocol sacn isn't supported; give sACN universes")
-    lo, hi = (1, 63999) if numbering == "sacn" else (0, 32767)
+    # Art-Net universes are 15-bit (0-32767); through Art-Net, sACN numbering
+    # is one higher (1-32768). Pure sACN allows 1-63999.
+    if args.protocol == "sacn":
+        lo, hi = 1, 63999
+    else:
+        lo, hi = (1, 32768) if numbering == "sacn" else (0, 32767)
     bad = [u for u in args.universes if not lo <= u <= hi]
     if bad:
         p.error("%s universes must be %d-%d; got %s" % (numbering, lo, hi, bad))

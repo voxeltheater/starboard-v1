@@ -10,22 +10,33 @@ import IOKit.serial
 enum USBDevices {
     /// RP2040 / RP2350 boot ROM (BOOTSEL mode).
     static let bootROMIDs: Set<[Int]> = [[0x2E8A, 0x0003], [0x2E8A, 0x000F]]
-    /// Vendors of boards we may touch: Raspberry Pi (1.3+ firmware, boot ROM)
-    /// and Arduino (pre-1.3 mbed firmware). Anything else - a USB-DMX interface, a
-    /// phone - is left strictly alone.
-    static let boardVendors: Set<Int> = [0x2E8A, 0x2341]
+    /// Serial devices we may touch: boards on 1.3+ (arduino-pico, 2E8A:000A)
+    /// and any Arduino-vendor device, which covers pre-1.3 boards (Arduino's
+    /// mbed core). Other Raspberry Pi-vendor devices, such as an RP2040-based
+    /// USB-DMX interface, and everything else are left strictly alone: an
+    /// unknown device that doesn't answer would otherwise be rebooted and
+    /// overwritten.
+    static func isBoard(vendor: Int, product: Int) -> Bool {
+        vendor == 0x2341 || (vendor == 0x2E8A && product == 0x000A)
+    }
 
     struct SerialPortInfo: Hashable {
         let path: String
         let vendor: Int
+        let product: Int
+        /// The USB port it's plugged into; a board keeps it across reboots.
+        let location: Int
     }
 
-    static func bootselPresent() -> Bool {
-        var found = false
+    static func bootselPresent() -> Bool { !bootselLocations().isEmpty }
+
+    /// USB ports with a board in the bootloader.
+    static func bootselLocations() -> [Int] {
+        var found: [Int] = []
         forEach(matching: IOServiceMatching("IOUSBHostDevice")) { service in
             if let v = intProperty(service, "idVendor"), let p = intProperty(service, "idProduct"),
                bootROMIDs.contains([v, p]) {
-                found = true
+                found.append(intProperty(service, "locationID") ?? 0)
             }
         }
         return found
@@ -40,11 +51,10 @@ enum USBDevices {
             guard let path = IORegistryEntryCreateCFProperty(service, kIOCalloutDeviceKey as CFString,
                                                             kCFAllocatorDefault, 0)?
                     .takeRetainedValue() as? String,
-                  let vendor = IORegistryEntrySearchCFProperty(
-                    service, kIOServicePlane, "idVendor" as CFString, kCFAllocatorDefault,
-                    IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)) as? NSNumber
+                  let vendor = parentInt(service, "idVendor")
             else { return }
-            out.append(SerialPortInfo(path: path, vendor: vendor.intValue))
+            out.append(SerialPortInfo(path: path, vendor: vendor, product: parentInt(service, "idProduct") ?? 0,
+                                      location: parentInt(service, "locationID") ?? 0))
         }
         return out.sorted { $0.path < $1.path }
     }
@@ -59,6 +69,13 @@ enum USBDevices {
             IOObjectRelease(service)
             service = IOIteratorNext(iterator)
         }
+    }
+
+    /// A property of the USB device a serial port belongs to.
+    private static func parentInt(_ service: io_object_t, _ key: String) -> Int? {
+        (IORegistryEntrySearchCFProperty(service, kIOServicePlane, key as CFString, kCFAllocatorDefault,
+                                         IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents))
+            as? NSNumber)?.intValue
     }
 
     private static func intProperty(_ service: io_object_t, _ key: String) -> Int? {
@@ -130,8 +147,10 @@ enum BoardQuery {
             buf += port.read(timeout: 0.1)
             if let start = buf.firstRange(of: prefix)?.lowerBound,
                let end = buf[start...].firstIndex(of: UInt8(ascii: "\n")) {
+                // The ID runs to the first space: the boot banner adds
+                // " (build ID ...)" after it.
                 let s = String(decoding: buf[start..<end], as: UTF8.self)
-                return .id(s.trimmingCharacters(in: .whitespacesAndNewlines))
+                return .id(String(s.split(whereSeparator: { $0.isWhitespace }).first ?? ""))
             }
         }
         return .noAnswer

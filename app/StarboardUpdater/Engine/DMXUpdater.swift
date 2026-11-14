@@ -34,7 +34,9 @@ struct DMXSettings {
 
     func validate() throws {
         if universes.isEmpty { throw FirmwareError("Enter the universes to update, e.g. 40-71.") }
-        let (lo, hi) = (proto == .sacn || consoleNumbering) ? (1, 63999) : (0, 32767)
+        // Art-Net carries 15-bit universes (0-32767); with console numbering
+        // that's 1-32768. sACN universes are 1-63999.
+        let (lo, hi) = proto == .sacn ? (1, 63999) : consoleNumbering ? (1, 32768) : (0, 32767)
         if let bad = universes.first(where: { $0 < lo || $0 > hi }) {
             throw FirmwareError("Universe \(bad) is out of range (\(lo)-\(hi)).")
         }

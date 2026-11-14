@@ -18,7 +18,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var problems: [String] = []
     /// A release's id, the custom build's id, or `otherBuildTag`.
     @Published var firmwareKey = ""
-    @Published private(set) var custom: Firmware?
+    @Published private(set) var custom: Firmware? {
+        didSet {
+            // Each Other build pick is a snapshot in a temp folder; drop the old one.
+            if let old = oldValue, old.id != custom?.id {
+                try? FileManager.default.removeItem(at: old.uf2.deletingLastPathComponent())
+            }
+        }
+    }
     @Published var alertMessage: String?
     @Published private(set) var refreshing = false
     @Published private(set) var releaseStatus = ""
@@ -80,7 +87,7 @@ final class AppModel: ObservableObject {
                 if s.releases == 0 { parts.append("No releases are published yet.") }
                 status = parts.joined(separator: " ")
             } catch {
-                status = "Couldn't reach GitHub (\(error.localizedDescription)). Showing downloaded releases."
+                status = "Couldn't update from GitHub: \(error.localizedDescription). Showing downloaded releases."
             }
             DispatchQueue.main.async {
                 self.refreshing = false

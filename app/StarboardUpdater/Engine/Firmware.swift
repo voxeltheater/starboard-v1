@@ -41,10 +41,14 @@ struct FirmwareID: Equatable {
     init?(_ raw: String) {
         let parts = raw.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 3, parts[0] == "SBFWID", let model = Int(parts[1]) else { return nil }
+        // A build time from __DATE__ __TIME__ contains colons of its own, so
+        // the version is the last field, when it looks like one ("1.3").
+        let last = parts.count >= 4 ? parts[parts.count - 1] : ""
+        let hasVersion = last.contains(".") && last.first?.isNumber == true
         self.raw = raw
         self.model = model
-        self.buildTime = parts[2]
-        self.version = parts.count >= 4 && !parts[3].isEmpty ? parts[3] : nil
+        self.buildTime = parts[2..<(hasVersion ? parts.count - 1 : parts.count)].joined(separator: ":")
+        self.version = hasVersion ? last : nil
     }
 
     /// What boards compare to skip an image they already run: CRC-32 of the ID.

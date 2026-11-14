@@ -42,15 +42,18 @@ final class USBFlashJob {
 
         var seen: [String: String] = [:]        // port -> what we concluded, while plugged in
         var notedOnce = Set<String>()
-        var pending = 0                         // flashed, not yet seen running the new build
-        var pendingSince = Date()
-        var hinted = false
+        // Flashed boards not yet seen running the new build, by USB port
+        // location (a board keeps it across the reboot), with when flashed.
+        // Only a board coming back on that port confirms the flash.
+        var pending: [Int: Date] = [:]
+        var hinted = Set<Int>()
         var done = 0
 
         while !stopFlag.isStopped {
             // A board already in the bootloader: blank, BOOTSEL held, or one we
             // just rebooted.
-            if USBDevices.bootselPresent() {
+            let bootsel = USBDevices.bootselLocations()
+            if !bootsel.isEmpty {
                 log("Board in bootloader: flashing \(target.label)…", .work)
                 if flash(picotool) {
                     // macOS keeps listing the boot ROM for a moment after
@@ -58,9 +61,8 @@ final class USBFlashJob {
                     // pass would try to flash it again and fail.
                     waitFor(seconds: 5) { !USBDevices.bootselPresent() }
                     log("Written and verified, waiting for it to start…", .dim)
-                    pending += 1
-                    pendingSince = Date()
-                    hinted = false
+                    pending[bootsel[0]] = Date()
+                    hinted.remove(bootsel[0])
                 } else {
                     log("FAILED to flash. Unplug it and try again.", .fail)
                     waitFor(seconds: 60) { !USBDevices.bootselPresent() }
@@ -73,12 +75,13 @@ final class USBFlashJob {
 
             for port in ports where seen[port.path] == nil {
                 if stopFlag.isStopped { break }
-                guard USBDevices.boardVendors.contains(port.vendor) else {
-                    if notedOnce.insert("vendor:\(port.path):\(port.vendor)").inserted {
-                        log("Ignoring \(port.path): USB vendor \(String(format: "%04X", port.vendor)) isn't a Starboard.", .dim)
+                guard USBDevices.isBoard(vendor: port.vendor, product: port.product) else {
+                    if notedOnce.insert("device:\(port.path):\(port.vendor):\(port.product)").inserted {
+                        log("Ignoring \(port.path): USB device \(String(format: "%04X:%04X", port.vendor, port.product)) isn't a Starboard.", .dim)
                     }
                     continue
                 }
+                let justFlashed = pending[port.location] != nil
 
                 let answer = BoardQuery.firmwareID(port: port.path)
                 if answer == .busy {
@@ -92,8 +95,8 @@ final class USBFlashJob {
                 if case .id(let raw) = answer {
                     if raw == target.raw {
                         seen[port.path] = "current"
-                        if pending > 0 {
-                            pending -= 1
+                        if justFlashed {
+                            pending[port.location] = nil
                             done += 1
                             log("OK: running \(target.label). \(done) board\(done == 1 ? "" : "s") done. Unplug it.", .ok)
                             flashed()
@@ -109,12 +112,12 @@ final class USBFlashJob {
                     }
                 }
 
-                if pending > 0 && answer == .noAnswer {
-                    // Almost certainly the board we just flashed, back up but not
-                    // answering. Reflashing would just loop, so stop and say so.
+                if justFlashed {
+                    // The board we just flashed, back up but not running the new
+                    // build. Reflashing would just loop, so stop and say so.
                     seen[port.path] = "unverified"
-                    pending = 0
-                    log("WARNING: the flashed board came back but didn't report its build. Not reflashing; check it before it goes in the rig.", .warn)
+                    pending[port.location] = nil
+                    log("WARNING: the flashed board came back but didn't report the new build. Not reflashing; check it before it goes in the rig.", .warn)
                     continue
                 }
 
@@ -129,15 +132,17 @@ final class USBFlashJob {
                 break // rescan from the top so the bootloader branch picks it up
             }
 
-            if pending > 0 && !hinted && Date().timeIntervalSince(pendingSince) > USBFlashJob.promptHint {
-                hinted = true
-                log("If macOS asks to allow an accessory to connect, click Allow. To stop these prompts: System Settings › Privacy & Security › Allow accessories to connect › Automatically When Unlocked.", .warn)
+            for (location, since) in pending {
+                let waited = Date().timeIntervalSince(since)
+                if waited > USBFlashJob.promptHint && hinted.insert(location).inserted {
+                    log("If macOS asks to allow an accessory to connect, click Allow. To stop these prompts: System Settings › Privacy & Security › Allow accessories to connect › Automatically When Unlocked.", .warn)
+                }
+                if waited > USBFlashJob.verifyWait {
+                    log("WARNING: a flashed board didn't come back running \(target.label) within \(Int(USBFlashJob.verifyWait)) s. Check it (unplug and replug to retry).", .warn)
+                    pending[location] = nil
+                }
             }
-            if pending > 0 && Date().timeIntervalSince(pendingSince) > USBFlashJob.verifyWait {
-                log("WARNING: a flashed board didn't come back running \(target.label) within \(Int(USBFlashJob.verifyWait)) s. Check it (unplug and replug to retry).", .warn)
-                pending = 0
-            }
-            stopFlag.sleep(pending > 0 ? 0.2 : 0.5) // check sooner while a flashed board restarts
+            stopFlag.sleep(pending.isEmpty ? 0.5 : 0.2) // check sooner while a flashed board restarts
         }
         log("Stopped. \(done) board\(done == 1 ? "" : "s") flashed and verified.", .plain)
     }
