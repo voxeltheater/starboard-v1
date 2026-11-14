@@ -12,3 +12,6 @@ test/app/.build/
 app/build/
 xcuserdata/
 *.xcuserstate
+
+# Release builds staged by tools/release.sh
+.release/

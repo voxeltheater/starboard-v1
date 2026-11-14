@@ -49,6 +49,7 @@ struct FirmwareHeader: View {
             GridRow {
                 Text("Firmware")
                 VStack(alignment: .leading, spacing: 4) {
+                    HStack {
                     Picker("Firmware", selection: $model.firmwareKey) {
                         if model.releases.isEmpty && model.custom == nil {
                             Text("No \(model.board.name) releases").tag("")
@@ -68,6 +69,10 @@ struct FirmwareHeader: View {
                             model.firmwareKey = old
                         }
                     }
+                    Button { model.refreshReleases() } label: { Image(systemName: "arrow.clockwise") }
+                        .help("Check GitHub for new releases")
+                    if model.refreshing { ProgressView().controlSize(.small) }
+                    }
                     detail
                 }
             }
@@ -81,10 +86,13 @@ struct FirmwareHeader: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
-        } else if model.releases.isEmpty {
-            Text("This app has no \(model.board.name) firmware. Run tools/release.sh and rebuild the app, or choose Other build….")
+        } else if model.releases.isEmpty && !model.refreshing {
+            Text("No \(model.board.name) releases downloaded. Connect to the internet and press ↻, or choose Other build.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        if !model.releaseStatus.isEmpty {
+            Text(model.releaseStatus).font(.caption).foregroundStyle(.secondary)
         }
         ForEach(model.problems, id: \.self) {
             Text("⚠️ " + $0).font(.caption).foregroundStyle(.orange)

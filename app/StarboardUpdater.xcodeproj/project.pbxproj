@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0016A5BA5314EBF4DADDA992 /* firmware in Resources */ = {isa = PBXBuildFile; fileRef = 304FE7635B68E785CCC252A2 /* firmware */; };
 		0F09EB3C3E2F273193B0F52E /* Network.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B43B68DACB0D0292E012031 /* Network.swift */; };
 		2636A11F381A2148C9A18586 /* DMXUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A053889213C6BE82FB926C /* DMXUpdater.swift */; };
 		3A52712F82B68FBE41440012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F572C9ED9077314C8A70608D /* Assets.xcassets */; };
@@ -18,6 +17,7 @@
 		742BADBC9B54F928E2220514 /* USBView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E82531C709319068522D035 /* USBView.swift */; };
 		7F79AE2DDD64DC0CFC3EEB4C /* Firmware.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BDF5ADFD0B22A2AE023AB4 /* Firmware.swift */; };
 		8285542F40174D2BFDBB479C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957C320CEEB7688DC2471170 /* ContentView.swift */; };
+		9D13816A4C8B9AE04880F214 /* ReleaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7CD25F3024148164911EDD5 /* ReleaseStore.swift */; };
 		BA46C924A8C8575607B0DCF2 /* StarboardUpdaterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */; };
 		D1092FACBFAD403AB45869B3 /* USBFlasher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6EDD39D3EA8EDF443F28AA0 /* USBFlasher.swift */; };
 		F2DCE04719636296009F9D98 /* UpdateProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B486229A5CD5427ABC49A4F /* UpdateProtocol.swift */; };
@@ -26,7 +26,6 @@
 /* Begin PBXFileReference section */
 		09BDF5ADFD0B22A2AE023AB4 /* Firmware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Firmware.swift; sourceTree = "<group>"; };
 		0B486229A5CD5427ABC49A4F /* UpdateProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProtocol.swift; sourceTree = "<group>"; };
-		304FE7635B68E785CCC252A2 /* firmware */ = {isa = PBXFileReference; lastKnownFileType = folder; name = firmware; path = ../firmware; sourceTree = SOURCE_ROOT; };
 		3EAAAFA0E2EE03E28B5EA204 /* USB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USB.swift; sourceTree = "<group>"; };
 		4C2B654A79D57236A1BF7774 /* StarboardUpdater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarboardUpdater.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E82531C709319068522D035 /* USBView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBView.swift; sourceTree = "<group>"; };
@@ -37,20 +36,12 @@
 		A6EDD39D3EA8EDF443F28AA0 /* USBFlasher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = USBFlasher.swift; sourceTree = "<group>"; };
 		A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarboardUpdaterApp.swift; sourceTree = "<group>"; };
 		B518B03939ECA378274608FA /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		D7CD25F3024148164911EDD5 /* ReleaseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseStore.swift; sourceTree = "<group>"; };
 		D933D42A595277FC3DAAC472 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		F572C9ED9077314C8A70608D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
-		299A6838BC65C27512451DB0 /* starboard-v1 */ = {
-			isa = PBXGroup;
-			children = (
-				304FE7635B68E785CCC252A2 /* firmware */,
-			);
-			name = "starboard-v1";
-			path = ..;
-			sourceTree = "<group>";
-		};
 		43094808899FD7A813A27BC7 /* StarboardUpdater */ = {
 			isa = PBXGroup;
 			children = (
@@ -84,7 +75,6 @@
 		952CD77E30B056478BF5B4A7 = {
 			isa = PBXGroup;
 			children = (
-				299A6838BC65C27512451DB0 /* starboard-v1 */,
 				43094808899FD7A813A27BC7 /* StarboardUpdater */,
 				6198F52FF57FBF8EFA92F3DC /* Products */,
 			);
@@ -97,6 +87,7 @@
 				09BDF5ADFD0B22A2AE023AB4 /* Firmware.swift */,
 				D933D42A595277FC3DAAC472 /* Log.swift */,
 				9B43B68DACB0D0292E012031 /* Network.swift */,
+				D7CD25F3024148164911EDD5 /* ReleaseStore.swift */,
 				0B486229A5CD5427ABC49A4F /* UpdateProtocol.swift */,
 				3EAAAFA0E2EE03E28B5EA204 /* USB.swift */,
 				A6EDD39D3EA8EDF443F28AA0 /* USBFlasher.swift */,
@@ -166,7 +157,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				3A52712F82B68FBE41440012 /* Assets.xcassets in Resources */,
-				0016A5BA5314EBF4DADDA992 /* firmware in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -206,6 +196,7 @@
 				7F79AE2DDD64DC0CFC3EEB4C /* Firmware.swift in Sources */,
 				458E34BC40314BD2DD4EFCAE /* Log.swift in Sources */,
 				0F09EB3C3E2F273193B0F52E /* Network.swift in Sources */,
+				9D13816A4C8B9AE04880F214 /* ReleaseStore.swift in Sources */,
 				BA46C924A8C8575607B0DCF2 /* StarboardUpdaterApp.swift in Sources */,
 				7075DEFA6EC92FE679BA1BE9 /* USB.swift in Sources */,
 				D1092FACBFAD403AB45869B3 /* USBFlasher.swift in Sources */,

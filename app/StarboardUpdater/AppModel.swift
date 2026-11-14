@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     @Published var firmwareKey = ""
     @Published private(set) var custom: Firmware?
     @Published var alertMessage: String?
+    @Published private(set) var refreshing = false
+    @Published private(set) var releaseStatus = ""
 
     @Published private(set) var usbRunning = false
     @Published private(set) var usbLog: [LogLine] = []
@@ -36,21 +38,63 @@ final class AppModel: ObservableObject {
     init() {
         board = BoardType(rawValue: UserDefaults.standard.integer(forKey: "board")) ?? .rgb12
         reloadFirmware()
+        refreshReleases()
     }
 
-    var busy: Bool { usbRunning || dmxRunning }
+    /// Refreshing counts as busy: it can delete a withdrawn release's files,
+    /// which a running job must not lose.
+    var busy: Bool { usbRunning || dmxRunning || refreshing }
 
     var firmware: Firmware? {
         if let custom, firmwareKey == custom.id { return custom }
         return releases.first { $0.id == firmwareKey }
     }
 
+    /// Keeps the current pick if it's still there; otherwise picks the latest
+    /// full release.
     func reloadFirmware() {
         let found = FirmwareLibrary.releases(for: board)
         releases = found.releases
         problems = found.problems
-        firmwareKey = releases.first?.id ?? ""
+        if firmwareKey == custom?.id || releases.contains(where: { $0.id == firmwareKey }) { return }
+        firmwareKey = (releases.first { !$0.prerelease } ?? releases.first)?.id ?? ""
     }
+
+    /// Downloads new releases from GitHub; keeps the downloaded ones if offline.
+    func refreshReleases() {
+        guard !busy else { return }
+        refreshing = true
+        releaseStatus = "Checking GitHub for releases…"
+        Thread {
+            let status: String
+            do {
+                let s = try ReleaseStore.sync()
+                var parts = ["Checked GitHub at \(Self.clock.string(from: Date()))."]
+                if !s.downloaded.isEmpty {
+                    let versions = Set(s.downloaded.map { $0.split(separator: " ")[0] }).sorted()
+                    parts.append("Downloaded " + versions.map { "v" + $0 }.joined(separator: ", ") + ".")
+                }
+                if !s.removed.isEmpty {
+                    parts.append("Removed " + s.removed.map { "v" + $0 }.joined(separator: ", ") + " (withdrawn on GitHub).")
+                }
+                if s.releases == 0 { parts.append("No releases are published yet.") }
+                status = parts.joined(separator: " ")
+            } catch {
+                status = "Couldn't reach GitHub (\(error.localizedDescription)). Showing downloaded releases."
+            }
+            DispatchQueue.main.async {
+                self.refreshing = false
+                self.releaseStatus = status
+                self.reloadFirmware()
+            }
+        }.start()
+    }
+
+    private static let clock: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f
+    }()
 
     /// Asks for a build folder or file; returns false if cancelled or invalid.
     func chooseOtherBuild() -> Bool {

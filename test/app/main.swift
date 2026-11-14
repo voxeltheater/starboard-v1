@@ -34,6 +34,11 @@ case "releases": // releases <firmware dir> <board>
     let r = FirmwareLibrary.releases(for: board, in: URL(fileURLWithPath: args[2]))
     for f in r.releases { print(f.title, f.firmwareID.raw) }
     for p in r.problems { print("problem:", p) }
+case "sync":     // sync <api-url> <cache dir>: download releases like the app does
+    do {
+        let s = try ReleaseStore.sync(api: URL(string: args[2])!, into: URL(fileURLWithPath: args[3]))
+        print("releases", s.releases, "downloaded", s.downloaded, "removed", s.removed)
+    } catch { print("error:", error.localizedDescription) }
 case "usb":      // usb <uf2-or-dir> <board> <seconds>: run the USB flasher
     let board = BoardType.allCases.first { $0.fileStem == args[3] }!
     let fw = try! Firmware.custom(at: URL(fileURLWithPath: args[2]), board: board)

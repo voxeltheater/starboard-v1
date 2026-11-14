@@ -15,7 +15,7 @@ enum BoardType: Int, CaseIterable, Identifiable {
         case .mono12: return "MONO12"
         }
     }
-    /// File names in firmware/<version>/ and build envs in platformio.ini.
+    /// Release file names and build envs in platformio.ini.
     var fileStem: String { name.lowercased() }
 
     static func named(model: Int) -> String {
@@ -85,6 +85,8 @@ struct Firmware: Identifiable, Hashable {
     let bin: URL
     let firmwareID: FirmwareID
     let isCustom: Bool
+    /// Published on GitHub as a pre-release: for testing, never picked by default.
+    var prerelease = false
 
     static func == (a: Firmware, b: Firmware) -> Bool { a.id == b.id && a.board == b.board }
     func hash(into h: inout Hasher) { h.combine(id); h.combine(board) }
@@ -145,16 +147,13 @@ struct Firmware: Identifiable, Hashable {
     }
 }
 
-/// The releases bundled with the app (the repo's firmware/ folder).
+/// Downloaded releases (see ReleaseStore), one folder per version.
 enum FirmwareLibrary {
-    static var folder: URL? { Bundle.main.resourceURL?.appendingPathComponent("firmware") }
-
     /// Releases for `board`, newest first. Problems are returned, not thrown,
     /// so one bad release can't hide the others.
-    static func releases(for board: BoardType, in folder: URL? = FirmwareLibrary.folder)
+    static func releases(for board: BoardType, in folder: URL = ReleaseStore.cache)
         -> (releases: [Firmware], problems: [String]) {
-        guard let folder,
-              let versions = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
+        guard let versions = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
             return ([], [])
         }
         var found: [Firmware] = []
@@ -165,20 +164,25 @@ enum FirmwareLibrary {
             let dir = folder.appendingPathComponent(version)
             let uf2 = dir.appendingPathComponent(board.fileStem + ".uf2")
             let bin = dir.appendingPathComponent(board.fileStem + ".bin")
-            guard FileManager.default.fileExists(atPath: uf2.path) else { continue }
+            let fm = FileManager.default
+            guard fm.fileExists(atPath: uf2.path), fm.fileExists(atPath: bin.path) else { continue }
+            let info = (try? Data(contentsOf: dir.appendingPathComponent(ReleaseInfo.file)))
+                .flatMap { try? JSONDecoder().decode(ReleaseInfo.self, from: $0) }
             do {
-                let fw = try Firmware.load(uf2: uf2, bin: bin, board: board, id: version,
+                var fw = try Firmware.load(uf2: uf2, bin: bin, board: board, id: version,
                                            title: "v\(version)", isCustom: false)
                 if fw.firmwareID.version != version {
-                    problems.append("firmware/\(version): files report \(fw.firmwareID.label), not v\(version).")
+                    problems.append("Release \(version): its files report \(fw.firmwareID.label), not v\(version).")
                     continue
                 }
+                fw.prerelease = info?.prerelease ?? false
+                if fw.prerelease { fw.title += " (pre-release)" }
                 found.append(fw)
             } catch {
-                problems.append("firmware/\(version): \(error.localizedDescription)")
+                problems.append("Release \(version): \(error.localizedDescription)")
             }
         }
-        if !found.isEmpty { found[0].title += " (latest)" }
+        if let i = found.firstIndex(where: { !$0.prerelease }) { found[i].title += " (latest)" }
         return (found, problems)
     }
 }

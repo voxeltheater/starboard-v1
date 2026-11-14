@@ -40,8 +40,12 @@ bundles PlatformIO's `picotool` for USB flashing. The app is Apple silicon
 only, because that `picotool` is.
 
 At the top of the window, pick the **board type** and the **firmware**. The
-newest release is chosen by default; **Other build…** takes a `.pio/build/…`
-folder for testing a development build. Both tabs use what's picked here.
+firmware list is the releases published on GitHub (see
+[Firmware releases](#firmware-releases)). The app checks for new ones when it
+opens and when you press ↻, and keeps a copy of each, so it works offline on
+the lighting network once it has checked while online. The newest full release
+is chosen by default; **Other build…** takes a `.pio/build/…` folder or a
+`.uf2` for testing a development build. Both tabs use what's picked here.
 
 ### USB tab
 
@@ -118,24 +122,32 @@ Safety:
 
 ## Firmware releases
 
-Every release lives in `firmware/<version>/`: a `.uf2` (USB) and a `.bin` (DMX)
-for each board type, plus `RELEASE.txt` recording the commit it was built
-from. The app bundles the whole folder, so each app build carries every
-release, newest first.
+Releases are published on GitHub, at
+[voxeltheater/starboard-v1/releases](https://github.com/voxeltheater/starboard-v1/releases).
+Each one has a `.uf2` (USB) and a `.bin` (DMX) for every board type, named
+like `starboard-1.3-rgb12.uf2`. The app downloads them; nothing is bundled,
+so publishing a release doesn't need a new app build.
 
-To make a release:
+To publish one (needs the [GitHub CLI](https://cli.github.com), logged in with
+write access to the repo):
 
 1. Make and test your firmware changes. Use `pio run -e rgb12`, and the app's
    **Other build…** pointed at `.pio/build/rgb12`.
 2. Bump `FIRMWARE_VERSION` in `src/main.cpp`, for example to `"1.3.1"` or
-   `"1.4"`, and commit.
-3. Run `sh tools/release.sh`. It builds all three board types into
-   `firmware/<version>/`.
-4. Commit `firmware/<version>/`, then rebuild the app.
+   `"1.4"`. Commit and push.
+3. Run `sh tools/release.sh`. It builds all three board types, stages them in
+   `.release/<version>/`, and publishes them as release `v<version>`.
+   Add `--prerelease` to publish a test build: the app lists it as
+   "(pre-release)" but never picks it by default.
+4. Press ↻ in the app.
 
-The script refuses to overwrite an existing version or to build from
-uncommitted changes. Boards and the app identify a release by its version, so
-the files behind a version never change.
+The script refuses to republish an existing version, to build from
+uncommitted changes, or to publish a commit that isn't on GitHub. Boards and
+the app identify a release by its version, so the files behind a version
+never change. **To withdraw a bad release, delete it on GitHub**; each app
+removes it on its next check. The app also checks every download against
+GitHub's checksum, and every file must carry the right board type and
+version.
 
 Boards report `SBFWID:<type>:<build time>:<version>`, where type 0 = RGB12,
 1 = MONO20 and 2 = MONO12. Send `?` over USB serial at 115200 baud to get it.
@@ -196,9 +208,8 @@ Each board also reports on USB serial at 115200 baud:
 |---|---|
 | `src/main.cpp` | Firmware: DMX input, LED output, test patterns, debug LED |
 | `src/dmx_update.*` | Board side of DMX firmware updates |
-| `firmware/` | Released builds, bundled into the app |
 | `app/` | Starboard Updater (SwiftUI). `Engine/` has no UI code; `project.yml` regenerates the Xcode project with XcodeGen; `make_icon.swift` redraws the app icon |
-| `tools/release.sh` | Builds a release into `firmware/<version>/` |
+| `tools/release.sh` | Builds and publishes a release on GitHub |
 | `tools/dmx_update.py` | Command-line DMX updater; the reference the app is tested against |
 | `lib/Adafruit_TLC59711/` | Vendored TLC59711 library with an arduino-pico fix (see its `STARBOARD.md`) |
 | `test/` | Host tests (above) |

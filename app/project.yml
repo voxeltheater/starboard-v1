@@ -17,10 +17,6 @@ targets:
     platform: macOS
     sources:
       - path: StarboardUpdater
-      # Every firmware release in the repo ships inside the app.
-      - path: ../firmware
-        type: folder
-        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: Starboard Updater
