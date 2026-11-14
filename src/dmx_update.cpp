@@ -65,14 +65,17 @@ DmxUpdateReceiver::Result DmxUpdateReceiver::handleFrame(const uint8_t* slots){
 }
 
 DmxUpdateReceiver::Result DmxUpdateReceiver::handleHeader(const uint8_t* slots, uint32_t crc){
-  if(_active && crc == _crc){
-    return PROGRESS; // repeat of the header we're already following
-  }
-
   uint32_t size = readLE32(slots + 14);
   uint8_t model = slots[18];
   uint16_t chunkSize = readLE16(slots + 19);
   uint32_t buildId = readLE32(slots + 21);
+
+  // A repeat of the header we're already following. The same image sent
+  // with another chunk size (a rerun with different settings) has the same
+  // CRC but different chunks, so it must start over below.
+  if(_active && crc == _crc && size == _size && chunkSize == _chunkSize){
+    return PROGRESS;
+  }
 
   if(model != _model || buildId == _runningBuildId){
     return IGNORED;

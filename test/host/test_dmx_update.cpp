@@ -1,7 +1,7 @@
 // Host-side test for src/dmx_update.cpp against frames produced by
 // tools/dmx_update.py --dump. Run via test/host/run.sh.
 //
-//   test_dmx_update <frames file> <expected image> <model>
+//   test_dmx_update <frames file> <expected image> <model> [<frames, other chunk size>]
 
 #include "../../src/dmx_update.h"
 
@@ -51,8 +51,8 @@ static int deliver(DmxUpdateReceiver& rx, const std::vector<std::vector<uint8_t>
 }
 
 int main(int argc, char** argv){
-  if(argc != 4){
-    fprintf(stderr, "usage: %s <frames> <image> <model>\n", argv[0]);
+  if(argc != 4 && argc != 5){
+    fprintf(stderr, "usage: %s <frames> <image> <model> [<frames, other chunk size>]\n", argv[0]);
     return 2;
   }
   std::vector<uint8_t> raw = readFile(argv[1]);
@@ -135,6 +135,25 @@ int main(int argc, char** argv){
     std::vector<uint8_t> small(expected.size() - 1);
     DmxUpdateReceiver rx(small.data(), small.size(), model, 0);
     CHECK(rx.handleFrame(frames[0].data()) == DmxUpdateReceiver::BAD_PACKET, "oversize image accepted");
+  }
+
+  // A send stopped part-way, then rerun with another chunk size: same image
+  // and CRC, different chunks. The board must start over and complete.
+  if(argc == 5){
+    std::vector<uint8_t> rawB = readFile(argv[4]);
+    std::vector<std::vector<uint8_t>> framesB;
+    for(size_t off = 0; off + DMX_UPDATE_SLOTS <= rawB.size(); off += DMX_UPDATE_SLOTS){
+      framesB.emplace_back(rawB.begin() + off, rawB.begin() + off + DMX_UPDATE_SLOTS);
+    }
+    DmxUpdateReceiver rx(imageBuf.data(), imageBuf.size(), model, 0);
+    std::vector<std::vector<uint8_t>> half(frames.begin(), frames.begin() + frames.size() / 2);
+    CHECK(deliver(rx, half, 0, 0, 1, 5, false) == -1, "half a pass completed");
+    CHECK(rx.active(), "half a pass didn't start a download");
+    int passes = deliver(rx, framesB, 0, 0, 2, 6, false);
+    CHECK(passes == 1, "rerun with another chunk size didn't complete in one pass");
+    if(passes > 0){
+      CHECK(memcmp(rx.image(), expected.data(), expected.size()) == 0, "chunk-size rerun: image mismatch");
+    }
   }
 
   printf("%s (%zu frames, %zu-byte image)\n", failures ? "FAILED" : "ok", frames.size(), expected.size());

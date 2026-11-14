@@ -190,6 +190,10 @@ int blueScale = 255;
 int controlValue = 0;
 int previousControlValue = 0;
 volatile unsigned long lastDMXFrameMillis = 0;
+// Set once the first show frame (not update data) has landed in buffer[].
+// Until then buffer[] is just zeros, which would otherwise pass as valid DMX
+// and fire the "first DMX" flash at power-up.
+volatile bool showFrameReceived = false;
 
 void loop(){
   serviceFirmwareUpdate();
@@ -483,7 +487,7 @@ int checkDMXHealth(){
   if(!addressValid){
     fault = DMX_FAULT_BAD_ADDRESS;
 
-  }else if(millisSinceLastDMXFrame() > DMX_TIMEOUT_MILLIS){
+  }else if(!showFrameReceived || millisSinceLastDMXFrame() > DMX_TIMEOUT_MILLIS){
     fault = DMX_FAULT_NO_PACKET;
 
   }else if(buffer[0] != 0x00){
@@ -650,6 +654,10 @@ void installFirmwareUpdate(){
 
   bool ok = Update.begin(size) && Update.write(updateImage, size) == size && Update.end();
   if(!ok){
+    // A short write skips end() above, leaving the Updater mid-update, and
+    // every later begin() would then fail until a reboot. end() on an
+    // unfinished update installs nothing; it just closes and resets it.
+    Update.end();
     if(DEBUG_SERIAL_LOG){
       Serial.print("Firmware update failed: ");
       Update.printError(Serial);
@@ -680,4 +688,5 @@ void __isr dmxDataRecevied(DmxInput* instance) {
     return;
   }
   memcpy((void*)buffer, frame, sizeof(buffer));
+  showFrameReceived = true;
 }
