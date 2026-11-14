@@ -10,6 +10,7 @@
 		0016A5BA5314EBF4DADDA992 /* firmware in Resources */ = {isa = PBXBuildFile; fileRef = 304FE7635B68E785CCC252A2 /* firmware */; };
 		0F09EB3C3E2F273193B0F52E /* Network.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B43B68DACB0D0292E012031 /* Network.swift */; };
 		2636A11F381A2148C9A18586 /* DMXUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A053889213C6BE82FB926C /* DMXUpdater.swift */; };
+		3A52712F82B68FBE41440012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F572C9ED9077314C8A70608D /* Assets.xcassets */; };
 		3D1859324858C8B9A470EDFD /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B518B03939ECA378274608FA /* AppModel.swift */; };
 		42A6569AEDDC86AB00F59576 /* DMXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E243FE9F2CA5DA8EB22C63 /* DMXView.swift */; };
 		458E34BC40314BD2DD4EFCAE /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = D933D42A595277FC3DAAC472 /* Log.swift */; };
@@ -37,6 +38,7 @@
 		A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarboardUpdaterApp.swift; sourceTree = "<group>"; };
 		B518B03939ECA378274608FA /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		D933D42A595277FC3DAAC472 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+		F572C9ED9077314C8A70608D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -53,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				B518B03939ECA378274608FA /* AppModel.swift */,
+				F572C9ED9077314C8A70608D /* Assets.xcassets */,
 				A7E4366DD651C68AAE2678BB /* StarboardUpdaterApp.swift */,
 				F8C073D0F2328E2AF093744F /* Engine */,
 				70528A7A1F417C33AEDA4878 /* Views */,
@@ -162,6 +165,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3A52712F82B68FBE41440012 /* Assets.xcassets in Resources */,
 				0016A5BA5314EBF4DADDA992 /* firmware in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

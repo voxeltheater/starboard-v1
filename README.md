@@ -197,7 +197,7 @@ Each board also reports on USB serial at 115200 baud:
 | `src/main.cpp` | Firmware: DMX input, LED output, test patterns, debug LED |
 | `src/dmx_update.*` | Board side of DMX firmware updates |
 | `firmware/` | Released builds, bundled into the app |
-| `app/` | Starboard Updater (SwiftUI). `Engine/` has no UI code; `project.yml` regenerates the Xcode project with XcodeGen |
+| `app/` | Starboard Updater (SwiftUI). `Engine/` has no UI code; `project.yml` regenerates the Xcode project with XcodeGen; `make_icon.swift` redraws the app icon |
 | `tools/release.sh` | Builds a release into `firmware/<version>/` |
 | `tools/dmx_update.py` | Command-line DMX updater; the reference the app is tested against |
 | `lib/Adafruit_TLC59711/` | Vendored TLC59711 library with an arduino-pico fix (see its `STARBOARD.md`) |

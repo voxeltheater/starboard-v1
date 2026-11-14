@@ -26,6 +26,7 @@ targets:
         PRODUCT_NAME: Starboard Updater
         PRODUCT_BUNDLE_IDENTIFIER: com.voxeltheater.starboard-updater
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: Starboard Updater
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: Starboard Updater finds your Art-Net nodes and sends firmware updates to boards over the lighting network.
