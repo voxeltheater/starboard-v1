@@ -10,7 +10,8 @@ import Foundation
 ///  4. waits for it to come back and confirms it's running the new build.
 final class USBFlashJob {
     static let bootselWait: TimeInterval = 10   // for a board to reappear in the bootloader
-    static let verifyWait: TimeInterval = 20    // for a flashed board to come back running
+    static let verifyWait: TimeInterval = 60    // for a flashed board to come back running (allowing for macOS's accessory prompt)
+    static let promptHint: TimeInterval = 4     // when to mention that prompt
 
     let firmware: Firmware
     let stopFlag = StopFlag()
@@ -43,6 +44,7 @@ final class USBFlashJob {
         var notedOnce = Set<String>()
         var pending = 0                         // flashed, not yet seen running the new build
         var pendingSince = Date()
+        var hinted = false
         var done = 0
 
         while !stopFlag.isStopped {
@@ -58,6 +60,7 @@ final class USBFlashJob {
                     log("Written and verified, waiting for it to start…", .dim)
                     pending += 1
                     pendingSince = Date()
+                    hinted = false
                 } else {
                     log("FAILED to flash. Unplug it and try again.", .fail)
                     waitFor(seconds: 60) { !USBDevices.bootselPresent() }
@@ -126,6 +129,10 @@ final class USBFlashJob {
                 break // rescan from the top so the bootloader branch picks it up
             }
 
+            if pending > 0 && !hinted && Date().timeIntervalSince(pendingSince) > USBFlashJob.promptHint {
+                hinted = true
+                log("If macOS asks to allow an accessory to connect, click Allow. To stop these prompts: System Settings › Privacy & Security › Allow accessories to connect › Automatically When Unlocked.", .warn)
+            }
             if pending > 0 && Date().timeIntervalSince(pendingSince) > USBFlashJob.verifyWait {
                 log("WARNING: a flashed board didn't come back running \(target.label) within \(Int(USBFlashJob.verifyWait)) s. Check it (unplug and replug to retry).", .warn)
                 pending = 0

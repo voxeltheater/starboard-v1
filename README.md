@@ -63,6 +63,10 @@ Things to know:
 - **Keep board types in separate batches.** Pre-1.3 and blank boards can't
   report their type, so they get whichever type is picked. Boards on 1.3 or
   later are type-checked and refused if they don't match.
+- **macOS asks "Allow accessory to connect?"** for each new board, because a
+  freshly flashed board shows up as a new USB device. Click Allow, or stop the
+  prompts in System Settings › Privacy & Security › Allow accessories to
+  connect › **Automatically When Unlocked**.
 - **Close anything holding the board's serial port**, such as a serial
   monitor.
 
