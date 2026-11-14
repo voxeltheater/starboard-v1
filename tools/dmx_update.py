@@ -30,8 +30,8 @@ merges into the update packets and corrupts many of them, so boards never
 complete the image - they just keep running their current firmware. The
 sender asks you to confirm every other source is off before sending. With
 Art-Net it also asks the nodes (ArtPoll) whether a target port reports
-merging and stops if one does, but don't rely on that: on hardware, nodes
-merging two Art-Net sources didn't report it.
+merging and stops if one does. It has caught live merges on the rig's nodes
+but once missed one, so don't rely on it alone.
 
 Needs only the Python 3 standard library.
 """
