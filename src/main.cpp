@@ -20,7 +20,7 @@
 
 // The firmware release. Bump it before running tools/release.sh, which
 // saves the builds for every board type into firmware/<version>/.
-#define FIRMWARE_VERSION "1.3"
+#define FIRMWARE_VERSION "1.3.1"
 
 // Identifies this build. tools/dmx_update.py reads it out of firmware.bin to
 // learn which board type the image is for (and refuses files without one),
