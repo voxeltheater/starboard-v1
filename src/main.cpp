@@ -353,14 +353,19 @@ void regularMonoFrame(){
   
 }
 
-// MONO12 wires board outputs 1-12 to the driver's PWM channels 0-11 in order:
-// pins 3-8 are OUTR0/G0/B0/R1/G1/B1 (GS fields 0-5) and pins 13-18 are
-// OUTR2/G2/B2/R3/G3/B3 (GS fields 6-11), so DMX channel N drives output N with
-// no patching. Scaling matches regularMonoFrame().
+// MONO12 routes its outputs like each driver on a MONO20 (see
+// regularMonoFrame() groups 8-11): the driver's channels 0-11 drive outputs
+// 1, 3, 5, 7, 9, 11, 12, 10, 8, 6, 4, 2. Sending DMX straight through lit the
+// outputs in that interleaved order. Scaling matches regularMonoFrame().
 void regularMono12Frame(){
+  int v[12];
   for (int i = 0; i < 12; i++){
-    tlc.setPWM(i, constrain(buffer[addressOffset + i + 1] * 255, 0, 65535));
+    v[i] = constrain(buffer[addressOffset + i + 1] * 255, 0, 65535);
   }
+  tlc.setLED(0, v[0], v[2], v[4]);   // 0/2/4
+  tlc.setLED(1, v[6], v[8], v[10]);  // 6/8/10
+  tlc.setLED(2, v[11], v[9], v[7]);  // 11/9/7
+  tlc.setLED(3, v[5], v[3], v[1]);   // 5/3/1
 }
 
 void soloRGBTestFrame(){
