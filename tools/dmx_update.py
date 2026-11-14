@@ -13,7 +13,7 @@ two sources on one universe will interleave and slow the update to a crawl.
 
 Examples:
   # universes 40-71 over sACN multicast, out of the interface at 10.0.0.5
-  python3 tools/dmx_update.py .pio/build/nanorp2040connect/firmware.bin \\
+  python3 tools/dmx_update.py .pio/build/rgb12/firmware.bin \\
       --universes 40-71 --interface 10.0.0.5
 
   # Art-Net, unicast to the nodes whose names start with STARNET, which are
@@ -62,7 +62,7 @@ MAX_IMAGE = 160 * 1024
 MODELS = {"rgb12": 0, "mono20": 1, "mono12": 2}
 MODEL_NAMES = {v: k for k, v in MODELS.items()}
 
-# FIRMWARE_ID in src/main.cpp: "SBFWID:<PCB_MODEL>:<build time>".
+# FIRMWARE_ID in src/main.cpp: "SBFWID:<PCB_MODEL>:<build time>:<version>".
 FIRMWARE_ID_PREFIX = b"SBFWID:"
 
 

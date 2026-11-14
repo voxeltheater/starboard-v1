@@ -12,11 +12,15 @@
 #define PCB_MONO20 1
 #define PCB_MONO12 2
 
-// Override per build in platformio.ini (env:mono12 sets PCB_MONO12).
+// Set per board type by the build envs in platformio.ini (rgb12, mono12, mono20).
 #ifndef PCB_MODEL
 #define PCB_MODEL PCB_RGB12
 #endif
 #define BLACKOUT_IF_NO_DMX false
+
+// The firmware release. Bump it before running tools/release.sh, which
+// saves the builds for every board type into firmware/<version>/.
+#define FIRMWARE_VERSION "1.3"
 
 // Identifies this build. tools/dmx_update.py reads it out of firmware.bin to
 // learn which board type the image is for (and refuses files without one),
@@ -31,7 +35,9 @@
 #else
 #define FIRMWARE_BUILD_TIME_STR SB_STR(FIRMWARE_BUILD_TIME)
 #endif
-__attribute__((used)) const char FIRMWARE_ID[] = "SBFWID:" SB_STR(PCB_MODEL) ":" FIRMWARE_BUILD_TIME_STR;
+// "SBFWID:<PCB_MODEL>:<build time>:<version>". Tools rely on the first two
+// fields; add new fields only at the end.
+__attribute__((used)) const char FIRMWARE_ID[] = "SBFWID:" SB_STR(PCB_MODEL) ":" FIRMWARE_BUILD_TIME_STR ":" FIRMWARE_VERSION;
 
 #define DEBUG_LED_PIN 6
 #define DEBUG_SERIAL_LOG true

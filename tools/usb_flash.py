@@ -40,7 +40,7 @@ except ImportError:
                      "  ~/.platformio/penv/bin/python tools/usb_flash.py")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_UF2 = os.path.join(ROOT, ".pio", "build", "nanorp2040connect", "firmware.uf2")
+DEFAULT_UF2 = os.path.join(ROOT, ".pio", "build", "rgb12", "firmware.uf2")
 DEFAULT_PICOTOOL = os.path.expanduser(
     "~/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool")
 
