@@ -12,7 +12,10 @@
 #define PCB_MONO20 1
 #define PCB_MONO12 2
 
+// Override per build in platformio.ini (env:mono12 sets PCB_MONO12).
+#ifndef PCB_MODEL
 #define PCB_MODEL PCB_RGB12
+#endif
 #define BLACKOUT_IF_NO_DMX false
 
 // Identifies this build. tools/dmx_update.py reads it out of firmware.bin to
@@ -49,10 +52,11 @@ __attribute__((used)) const char FIRMWARE_ID[] = "SBFWID:" SB_STR(PCB_MODEL) ":"
 #define DMX_FAULT_BAD_ADDRESS 4
 
 // Highest drop whose channels still fit inside the 512-channel universe.
-// MONO20 reads 20*index + 20; a dial setting above this would index past
-// the end of buffer[]. (RGB12 needs no limit: its 4-bit dial tops out at
-// 15, which is the test mode, and 14 reads at most 33*14 + 36 = 498.)
-#define MONO20_MAX_DROP_INDEX 24
+// MONO20 reads 20*index + 20 (24 -> 500); MONO12 reads 12*index + 12
+// (41 -> 504). A dial setting above this would index past the end of
+// buffer[]. (RGB12 needs no limit: its 4-bit dial tops out at 15, which is
+// the test mode, and 14 reads at most 33*14 + 36 = 498.)
+#define MONO_MAX_DROP_INDEX (PCB_MODEL == PCB_MONO12 ? 41 : 24)
 
 // Count of 224-bit packets clocked out per write, which is not the same as the
 // number of drivers stuffed. RGB12 really does have three. MONO20 carries two
@@ -222,9 +226,9 @@ void loop(){
     // ask for a drop far beyond the universe. Clamp so the frame functions
     // never index past buffer[], and flag it so the debug LED reports it.
     // dipDial1 == 15 is the intentional test mode, not a misconfiguration.
-    addressValid = (dipDial1 == 15) || (dropIndex <= MONO20_MAX_DROP_INDEX);
-    if(dropIndex > MONO20_MAX_DROP_INDEX){
-      dropIndex = MONO20_MAX_DROP_INDEX;
+    addressValid = (dipDial1 == 15) || (dropIndex <= MONO_MAX_DROP_INDEX);
+    if(dropIndex > MONO_MAX_DROP_INDEX){
+      dropIndex = MONO_MAX_DROP_INDEX;
     }
 
     addressOffset = MONO_CHANNELS * dropIndex;
@@ -501,7 +505,7 @@ int checkDMXHealth(){
       case DMX_FAULT_ALL_FF:    Serial.println("DMX fault: all-0xFF universe"); break;
       case DMX_FAULT_BAD_ADDRESS:
         Serial.print("DMX fault: drop index out of range, clamped to ");
-        Serial.println(MONO20_MAX_DROP_INDEX);
+        Serial.println(MONO_MAX_DROP_INDEX);
         break;
     }
   }
