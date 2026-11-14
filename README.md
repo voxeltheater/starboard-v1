@@ -36,8 +36,14 @@ open "build/Build/Products/Release/Starboard Updater.app"
 ```
 
 Build the firmware once with PlatformIO before building the app: the app
-bundles PlatformIO's `picotool` for USB flashing. The app is Apple silicon
-only, because that `picotool` is.
+bundles PlatformIO's `picotool` for USB flashing, in `Contents/Helpers`. The
+app is Apple silicon only, because that `picotool` is.
+
+The app is signed by The Voxel LLC's team (98WVU7KCBB) with the hardened
+runtime, so **Product › Archive** works in Xcode (add
+`-allowProvisioningUpdates` to command-line builds). Distributing it outside
+your own Macs needs a Developer ID Application certificate for that team, then
+**Distribute App › Developer ID** in the Organizer to notarize it.
 
 At the top of the window, pick the **board type** and the **firmware**. The
 firmware list is the releases published on GitHub (see
@@ -140,6 +146,12 @@ write access to the repo):
    Add `--prerelease` to publish a test build: the app lists it as
    "(pre-release)" but never picks it by default.
 4. Press ↻ in the app.
+
+**v1.2** is the firmware from before 1.3 (the Arduino mbed core), published
+for rolling back. The app lists it as "pre-1.3, USB only": it can't go out
+over DMX, and since old firmware can't report what it runs, every board
+plugged in gets flashed and a flash counts as done when the board's USB port
+comes back. A board rolled back to it needs a USB flash to return to 1.3.
 
 The build platform, arduino-pico core and libraries are pinned in
 `platformio.ini`. Change them only on purpose, and test a USB flash and a DMX

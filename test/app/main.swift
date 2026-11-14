@@ -39,9 +39,15 @@ case "sync":     // sync <api-url> <cache dir>: download releases like the app d
         let s = try ReleaseStore.sync(api: URL(string: args[2])!, into: URL(fileURLWithPath: args[3]))
         print("releases", s.releases, "downloaded", s.downloaded, "removed", s.removed)
     } catch { print("error:", error.localizedDescription) }
-case "usb":      // usb <uf2-or-dir> <board> <seconds>: run the USB flasher
+case "usb":      // usb <uf2-or-dir | release-cache:version> <board> <seconds>: run the USB flasher
     let board = BoardType.allCases.first { $0.fileStem == args[3] }!
-    let fw = try! Firmware.custom(at: URL(fileURLWithPath: args[2]), board: board)
+    let fw: Firmware
+    if let colon = args[2].lastIndex(of: ":") {   // a release from a cache folder, as the app loads it
+        let cache = URL(fileURLWithPath: String(args[2][..<colon])), version = String(args[2][args[2].index(after: colon)...])
+        fw = FirmwareLibrary.releases(for: board, in: cache).releases.first { $0.id == version }!
+    } else {
+        fw = try! Firmware.custom(at: URL(fileURLWithPath: args[2]), board: board)
+    }
     let job = USBFlashJob(firmware: fw, log: { print(ISO8601DateFormatter().string(from: Date()), $1.emoji, $0); fflush(stdout) }, flashed: {})
     let t = Thread { job.run() }; t.start()
     Thread.sleep(forTimeInterval: Double(args[4])!); job.stop(); Thread.sleep(forTimeInterval: 1.5)

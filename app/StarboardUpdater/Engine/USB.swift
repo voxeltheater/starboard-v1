@@ -170,9 +170,8 @@ enum Picotool {
     /// a Homebrew install.
     static func find() -> String? {
         var candidates: [String] = []
-        if let res = Bundle.main.resourceURL {
-            candidates.append(res.appendingPathComponent("picotool/picotool").path)
-        }
+        // Contents/Helpers, where signed helper executables belong.
+        candidates.append(Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/picotool").path)
         candidates += [
             NSHomeDirectory() + "/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool",
             "/opt/homebrew/bin/picotool",

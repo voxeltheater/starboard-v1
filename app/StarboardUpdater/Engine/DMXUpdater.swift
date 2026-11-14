@@ -210,6 +210,10 @@ final class DMXUpdateJob {
     private func transmit(plan: Plan, poller: Poller?) throws {
         guard let raw = try? Data(contentsOf: firmware.bin) else { throw FirmwareError("Can't read the firmware file.") }
         guard let image = Gzip.compress(Array(raw)) else { throw FirmwareError("Couldn't compress the firmware.") }
+        if firmware.legacy {
+            log("Pre-1.3 firmware can only be installed over USB.", .fail)
+            return
+        }
         let id = firmware.firmwareID
         let frames = try UpdateProtocol.passFrames(image: image, model: id.model, buildID: id.buildID)
         let universes = settings.wireUniverses

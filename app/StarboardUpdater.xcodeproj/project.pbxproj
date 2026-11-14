@@ -127,8 +127,8 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					C706771E21A52316A72BC9B4 = {
-						DevelopmentTeam = "";
-						ProvisioningStyle = Manual;
+						DevelopmentTeam = 98WVU7KCBB;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -180,7 +180,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copies PlatformIO's picotool (and its libusb) into the app, so the\n# app works on Macs without PlatformIO. picotool: BSD-3-Clause;\n# libusb: LGPL-2.1, used as an unmodified separate library.\nSRC=\"$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower\"\nDEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/picotool\"\nif [ -x \"$SRC/picotool\" ]; then\n  mkdir -p \"$DEST\"\n  cp -f \"$SRC/picotool\" \"$SRC/libusb-1.0.0.dylib\" \"$DEST/\"\n  cp -f \"$SRC/LICENSE.TXT\" \"$DEST/LICENSE-picotool.txt\"\n  codesign --force --sign - \"$DEST/libusb-1.0.0.dylib\" \"$DEST/picotool\"\nelse\n  echo \"warning: picotool not found at $SRC. Build the firmware once with PlatformIO, then rebuild the app; until then USB flashing only works on Macs with PlatformIO or Homebrew picotool.\"\nfi\n";
+			shellScript = "# Copies PlatformIO's picotool (and its libusb) into Contents/Helpers,\n# so the app works on Macs without PlatformIO, and signs them like\n# the app (hardened runtime, secure timestamp) so archives notarize.\n# picotool: BSD-3-Clause; libusb: LGPL-2.1, used as an unmodified\n# separate library.\nSRC=\"$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower\"\nDEST=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers\"\nif [ -x \"$SRC/picotool\" ]; then\n  mkdir -p \"$DEST\"\n  cp -f \"$SRC/picotool\" \"$SRC/libusb-1.0.0.dylib\" \"$DEST/\"\n  cp -f \"$SRC/LICENSE.TXT\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/LICENSE-picotool.txt\"\n  IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\n  STAMP=\"--timestamp\"\n  [ \"$IDENTITY\" = \"-\" ] && STAMP=\"--timestamp=none\"\n  codesign --force --options runtime $STAMP --sign \"$IDENTITY\" \"$DEST/libusb-1.0.0.dylib\" \"$DEST/picotool\"\nelse\n  echo \"warning: picotool not found at $SRC. Build the firmware once with PlatformIO, then rebuild the app; until then USB flashing only works on Macs with PlatformIO or Homebrew picotool.\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -336,12 +336,11 @@
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 98WVU7KCBB;
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Starboard Updater";
@@ -363,12 +362,11 @@
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 98WVU7KCBB;
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Starboard Updater";

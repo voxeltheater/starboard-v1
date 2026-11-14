@@ -103,12 +103,15 @@ struct DMXView: View {
                 ProgressView().controlSize(.small)
             } else {
                 Button("Check Nodes") { start(send: false) }
-                    .disabled(model.firmware == nil || model.busy)
+                    .disabled(model.firmware == nil || model.firmware?.legacy == true || model.busy)
                 Button("Send Update…") {
                     if settings() != nil { confirming = true }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(model.firmware == nil || model.busy)
+                .disabled(model.firmware == nil || model.firmware?.legacy == true || model.busy)
+            }
+            if model.firmware?.legacy == true {
+                Text("Pre-1.3 firmware installs over USB only.").font(.caption).foregroundStyle(.secondary)
             }
             if let inputError {
                 Text(inputError).font(.caption).foregroundStyle(.red)

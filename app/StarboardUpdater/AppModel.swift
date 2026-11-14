@@ -64,7 +64,7 @@ final class AppModel: ObservableObject {
         releases = found.releases
         problems = found.problems
         if firmwareKey == custom?.id || releases.contains(where: { $0.id == firmwareKey }) { return }
-        firmwareKey = (releases.first { !$0.prerelease } ?? releases.first)?.id ?? ""
+        firmwareKey = (releases.first { !$0.prerelease && !$0.legacy } ?? releases.first)?.id ?? ""
     }
 
     /// Downloads new releases from GitHub; keeps the downloaded ones if offline.

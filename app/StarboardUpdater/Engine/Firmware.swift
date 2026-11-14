@@ -91,6 +91,33 @@ struct Firmware: Identifiable, Hashable {
     let isCustom: Bool
     /// Published on GitHub as a pre-release: for testing, never picked by default.
     var prerelease = false
+    /// Pre-1.3 firmware (Arduino mbed core), kept for rolling back. It has no
+    /// FIRMWARE_ID, so `firmwareID` is a stand-in ("SBFWID:<model>:pre-1.3:<version>")
+    /// that no board ever reports. USB only: these builds can't be sent over
+    /// DMX, and boards running them can't confirm what they run.
+    var legacy = false
+
+    /// Pre-1.3 release files: no ID to check, so check what can be: the UF2
+    /// writes exactly the .bin, it isn't a 1.3+ build, and the release
+    /// is older than 1.3.
+    static func loadLegacy(uf2: URL, bin: URL, board: BoardType, version: String) throws -> Firmware {
+        guard version.compare("1.3", options: .numeric) == .orderedAscending else {
+            throw FirmwareError("its files have no firmware ID: they aren't Starboard 1.3+ builds.")
+        }
+        guard let binData = try? Data(contentsOf: bin), let uf2Data = try? Data(contentsOf: uf2) else {
+            throw FirmwareError("can't read its files.")
+        }
+        let payload = UF2.payload(Array(uf2Data))
+        guard !payload.isEmpty, Array(payload.prefix(binData.count)) == Array(binData) else {
+            throw FirmwareError("its .uf2 and .bin are different builds.")
+        }
+        guard FirmwareID.find(in: Array(binData)) == nil else {
+            throw FirmwareError("it's a 1.3+ build published under an older version.")
+        }
+        let standIn = FirmwareID("SBFWID:\(board.rawValue):pre-1.3:\(version)")!
+        return Firmware(id: version, title: "v\(version) (pre-1.3, USB only)", board: board, uf2: uf2,
+                        bin: bin, firmwareID: standIn, isCustom: false, legacy: true)
+    }
 
     static func == (a: Firmware, b: Firmware) -> Bool { a.id == b.id && a.board == b.board }
     func hash(into h: inout Hasher) { h.combine(id); h.combine(board) }
@@ -172,6 +199,14 @@ enum FirmwareLibrary {
             guard fm.fileExists(atPath: uf2.path), fm.fileExists(atPath: bin.path) else { continue }
             let info = (try? Data(contentsOf: dir.appendingPathComponent(ReleaseInfo.file)))
                 .flatMap { try? JSONDecoder().decode(ReleaseInfo.self, from: $0) }
+            if let data = try? Data(contentsOf: bin), FirmwareID.find(in: Array(data)) == nil {
+                do {
+                    found.append(try Firmware.loadLegacy(uf2: uf2, bin: bin, board: board, version: version))
+                } catch {
+                    problems.append("Release \(version): \(error.localizedDescription)")
+                }
+                continue
+            }
             do {
                 var fw = try Firmware.load(uf2: uf2, bin: bin, board: board, id: version,
                                            title: "v\(version)", isCustom: false)
@@ -186,7 +221,7 @@ enum FirmwareLibrary {
                 problems.append("Release \(version): \(error.localizedDescription)")
             }
         }
-        if let i = found.firstIndex(where: { !$0.prerelease }) { found[i].title += " (latest)" }
+        if let i = found.firstIndex(where: { !$0.prerelease && !$0.legacy }) { found[i].title += " (latest)" }
         return (found, problems)
     }
 }

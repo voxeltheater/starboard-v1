@@ -26,12 +26,12 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Starboard Updater
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: Starboard Updater finds your Art-Net nodes and sends firmware updates to boards over the lighting network.
-        # A local utility: signed to run on this Mac, no sandbox (it needs
-        # USB serial ports, picotool and raw UDP).
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "-"
-        DEVELOPMENT_TEAM: ""
-        ENABLE_HARDENED_RUNTIME: NO
+        # Signed by The Voxel LLC's team, hardened runtime on so archives can
+        # be notarized. No sandbox: the app needs USB serial ports, picotool
+        # and raw UDP. The hardened runtime needs no exceptions for those.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 98WVU7KCBB
+        ENABLE_HARDENED_RUNTIME: YES
         ENABLE_APP_SANDBOX: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # PlatformIO's picotool, bundled below, is Apple silicon only.
@@ -41,16 +41,21 @@ targets:
       - name: Bundle picotool
         basedOnDependencyAnalysis: false
         script: |
-          # Copies PlatformIO's picotool (and its libusb) into the app, so the
-          # app works on Macs without PlatformIO. picotool: BSD-3-Clause;
-          # libusb: LGPL-2.1, used as an unmodified separate library.
+          # Copies PlatformIO's picotool (and its libusb) into Contents/Helpers,
+          # so the app works on Macs without PlatformIO, and signs them like
+          # the app (hardened runtime, secure timestamp) so archives notarize.
+          # picotool: BSD-3-Clause; libusb: LGPL-2.1, used as an unmodified
+          # separate library.
           SRC="$HOME/.platformio/packages/tool-picotool-rp2040-earlephilhower"
-          DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/picotool"
+          DEST="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
           if [ -x "$SRC/picotool" ]; then
             mkdir -p "$DEST"
             cp -f "$SRC/picotool" "$SRC/libusb-1.0.0.dylib" "$DEST/"
-            cp -f "$SRC/LICENSE.TXT" "$DEST/LICENSE-picotool.txt"
-            codesign --force --sign - "$DEST/libusb-1.0.0.dylib" "$DEST/picotool"
+            cp -f "$SRC/LICENSE.TXT" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/LICENSE-picotool.txt"
+            IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+            STAMP="--timestamp"
+            [ "$IDENTITY" = "-" ] && STAMP="--timestamp=none"
+            codesign --force --options runtime $STAMP --sign "$IDENTITY" "$DEST/libusb-1.0.0.dylib" "$DEST/picotool"
           else
             echo "warning: picotool not found at $SRC. Build the firmware once with PlatformIO, then rebuild the app; until then USB flashing only works on Macs with PlatformIO or Homebrew picotool."
           fi

@@ -39,6 +39,9 @@ final class USBFlashJob {
         let target = firmware.firmwareID
         let board = firmware.board
         log("Ready to flash \(target.label) onto \(board.name) boards. Plug them in one at a time.", .ready)
+        if firmware.legacy {
+            log("This is pre-1.3 firmware: every board plugged in gets flashed, since boards can't report whether they already have it, and a flashed board can't confirm it's running.", .dim)
+        }
 
         var seen: [String: String] = [:]        // port -> what we concluded, while plugged in
         var notedOnce = Set<String>()
@@ -112,6 +115,16 @@ final class USBFlashJob {
                     }
                 }
 
+                if justFlashed && firmware.legacy && answer == .noAnswer {
+                    // Pre-1.3 firmware doesn't answer: its port coming back is
+                    // the only sign it started.
+                    seen[port.path] = "flashed"
+                    pending[port.location] = nil
+                    done += 1
+                    log("OK: flashed \(target.label) and the board restarted. \(done) board\(done == 1 ? "" : "s") done. Unplug it.", .ok)
+                    flashed()
+                    continue
+                }
                 if justFlashed {
                     // The board we just flashed, back up but not running the new
                     // build. Reflashing would just loop, so stop and say so.

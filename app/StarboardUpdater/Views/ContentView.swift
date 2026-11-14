@@ -81,7 +81,12 @@ struct FirmwareHeader: View {
     }
 
     @ViewBuilder private var detail: some View {
-        if let fw = model.firmware {
+        if let fw = model.firmware, fw.legacy {
+            Text("Firmware from before 1.3, for rolling back. Installs over USB only, and boards on it can't take DMX updates until they're flashed back to 1.3 or later over USB.")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if let fw = model.firmware {
             Text(fw.firmwareID.raw + (fw.isCustom ? "  ·  " + fw.bin.deletingLastPathComponent().path : ""))
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
