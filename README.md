@@ -141,6 +141,12 @@ write access to the repo):
    "(pre-release)" but never picks it by default.
 4. Press ↻ in the app.
 
+The build platform, arduino-pico core and libraries are pinned in
+`platformio.ini`. Change them only on purpose, and test a USB flash and a DMX
+update on a bench board first: a different core rewrites the boot stage
+during a DMX update. Never change `filesystem_size` in a release that goes out
+over DMX.
+
 The script refuses to republish an existing version, to build from
 uncommitted changes, or to publish a commit that isn't on GitHub. Boards and
 the app identify a release by its version, so the files behind a version
