@@ -10,14 +10,13 @@ import IOKit.serial
 enum USBDevices {
     /// RP2040 / RP2350 boot ROM (BOOTSEL mode).
     static let bootROMIDs: Set<[Int]> = [[0x2E8A, 0x0003], [0x2E8A, 0x000F]]
-    /// Serial devices we may touch: boards on 1.3+ (arduino-pico, 2E8A:000A)
-    /// and any Arduino-vendor device, which covers pre-1.3 boards (Arduino's
-    /// mbed core). Other Raspberry Pi-vendor devices, such as an RP2040-based
-    /// USB-DMX interface, and everything else are left strictly alone: an
-    /// unknown device that doesn't answer would otherwise be rebooted and
-    /// overwritten.
+    /// Vendors of boards we may touch: Raspberry Pi (1.3+ firmware, boot ROM)
+    /// and Arduino (pre-1.3 mbed firmware). Anything else - a phone, an FTDI
+    /// USB-DMX interface - is left alone. Note this includes any other
+    /// RP2040-based serial device: one that doesn't answer "?" is treated as a
+    /// pre-1.3 board, so unplug those while flashing.
     static func isBoard(vendor: Int, product: Int) -> Bool {
-        vendor == 0x2341 || (vendor == 0x2E8A && product == 0x000A)
+        vendor == 0x2E8A || vendor == 0x2341
     }
 
     struct SerialPortInfo: Hashable {
